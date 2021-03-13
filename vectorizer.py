@@ -15,9 +15,23 @@ img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/6/13
 def appStarted(app):
     app.contigLinesVisible = True 
     findEnds(app)
+    app.pixel0 =100
+    app.pixWH = 20
+    app.selCol = 0
+    app.selRow = 0
 
 def mousePressed(app, event):
-    app.contigLinesVisible = not app.contigLinesVisible
+    app.selCol, app.selRow = getGridCoords(app,event.x,event.y)
+    
+def getGridCoords(app,x,y):
+    col = (x-app.pixel0)//app.pixWH
+    row = (y-app.pixel0)//app.pixWH
+    return col, row
+
+def keyPressed(app, event):
+    if event.key.lower() == 'space':
+        app.contigLinesVisible = not app.contigLinesVisible
+
 
 def getMidPoints(image): #finds the midpoints, taking horizontal slices
     pixels = list(image.getdata()) # returns one long flattened list: row1, row2, etc
@@ -51,7 +65,7 @@ def getMidPoints(image): #finds the midpoints, taking horizontal slices
                     midsList.append((x,midpoint))# 
                 for y in range (leadEdge,y):
                     outlineList.append((x,y))# because <=THRESHOLD trigger
-                print("x,y,m: ",x,y,midpoint, end = "__")
+                #print("x,y,m: ",x,y,midpoint, end = "__")
                 leadEdge = 0      
     return midsImageList, midsList,outlineList
 
@@ -92,29 +106,9 @@ def areContiguous(image,mid1,mid2):
     pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
-    (width, height) = image.size
-    if abs(x1-x2)==1 and abs(y1-y2)==1: #by definition so to speak
-        return True
-    elif x1 == x2:
-        for row in range(min(y1,y2),max(y1,y2)+1):
-            if pixels[getIndex(x1,row)] < THRESHOLD: #gap found
-                return False
-        return True
-    elif y1 == y2:
-        for col in range(min(x1,x2),max(x1,x2)+1):
-            if pixels[getIndex(col, y1)] < THRESHOLD: #gap found
-                return False
-        return True      
-    else: # see notes, probably could eliminate the ish tests by adding 
-        #a contiguity check, ie if segPixelFound we need to make sure 
-        # it's not on the other side of the river gap so to speak, 
-        # anyway the ishes seem to do the trick for now
-        #if haveVerticalishGap(pixels,mid1,mid2):
-            #print ("failsVerticalish")
-        #    return False
-        #if haveHorizontalishGap(pixels,mid1,mid2):
-            #print ("failsHorizontalish")
-        #    return False
+    if not isConnected(image, mid1,mid2):
+        return False      
+    if abs(x1-x2) > 1 and abs(y1-y2) > 1: 
         m = (y2-y1)/(x2-x1) # m is the slope
         b = y1+.5 -m*(x1+.5) # b is the y intercept
         priorRowSegPixels = [i for i in range(min(x1,x2),max(x1,x2)+1)]
@@ -135,7 +129,7 @@ def areContiguous(image,mid1,mid2):
             for col in range (smallestX,largestX+1):
                 if pixels[getIndex(col,row)] > THRESHOLD:
                     curRowSegPixels.append(col)
-                    if col >= xMin and col <= xMax and col in priorRowSegPixels: #char pixel found
+                    if col >= xMin and col <= xMax: #and col in priorRowSegPixels: #char pixel found
                         segPixelFound = True
                     #print("col: ",col,"cRSP: ", curRowSegPixels, xMin,xMax)
             priorRowSegPixels = curRowSegPixels
@@ -143,59 +137,44 @@ def areContiguous(image,mid1,mid2):
                 #print("fails diag test", col, row, priorRowSegPixels, curRowSegPixels)
                 return False
     return True
-                
-# a gap is a barrier between two points, non contiguous if True
-#verticalish is a gap that spans y1 and y2 and sits between x1 and x2
 
-def haveVerticalishGap(pixels,mid1,mid2):
+def isConnected(image,mid1,mid2): 
+    pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
-    xList = [] #this checks for contiguousness of the gap itself
-    gapLength = 0
-    maxGapLength = 14 #if gap is this long it's enough to return True
-    xList =[i for i in range(min(x1,x2), max(x1,x2)+1)]
-    #for i in range(min(x1,x2),max(x1,x2)+1): xList += [i] TODO elim assuming list comprehension above works
-    for y in range(min(y1,y2), max(y1,y2)+1):
-        gapPixelFound = False
-        newXList = []
-        for x in range(min(x1,x2), max(x1,x2)+1):
-            if pixels[getIndex(x,y)] < THRESHOLD: 
-                newXList += [x] # adds all dark pixels it finds
-        for potentialX in newXList:
-            if potentialX in xList: #checks if any are contiguous with prior row
-                gapPixelFound = True # if so, found a qualified dark pixel on that row
-                #print("y: ",y,"potX: ", potentialX, "xList: ", xList, "gapLength: ", gapLength)
-                xList = newXList #add all to list
-                gapLength += 1
-        if gapPixelFound == False and gapLength <= maxGapLength:
-            return False #failed to find a dark pixel on that row
-    return True #not contiguous
+    if abs(x1-x2)==1 and abs(y1-y2)==1: #by definition so to speak
+        return True
+    elif x1 == x2:
+        for row in range(min(y1,y2),max(y1,y2)+1):
+            if pixels[getIndex(x1,row)] < THRESHOLD: #gap found
+                #print("false1")
+                return False
+        return True
+    elif y1 == y2:
+        for col in range(min(x1,x2),max(x1,x2)+1):
+            if pixels[getIndex(col, y1)] < THRESHOLD: #gap found
+                #print("false2")
+                return False
+        return True
+    else:
+        #print("rec coords: ", x1,y1,x2,y2)
+        if x2 > x1: xinc = 1
+        elif x1 > x2: xinc = -1
+        else: xinc = 0
+        if y2 > y1:yinc = 1
+        elif y1 > y2:yinc = -1
+        else: yinc = 0
+        if pixels[getIndex(x2,y2-yinc)] > THRESHOLD and isConnected(image,(x1,y1),(x2,y2-yinc)):
+            return True
+        elif pixels[getIndex(x2-xinc,y2)] > THRESHOLD and isConnected(image,(x1,y1),(x2-xinc,y2)):
+            return True
+        else:
+            #print("false3")
+            return False    
 
-# a gap is a barrier between two points, non contiguous if True
-#horizontalish is a gap that spans x1 and x2 and sits between y1 and y2 
-def haveHorizontalishGap(pixels,mid1,mid2):
-    (x1,y1) = (mid1[0], mid1[1])
-    (x2,y2) = (mid2[0], mid2[1])
-    yList = [] #this checks for contiguousness of the gap itself
-    gapLength = 0
-    maxGapLength = 14 # TODO: clean up (2x), not using this anymore
-    #if vertical gap is this long its enough to return True
-    for i in range(min(y1,y2),max(y1,y2)+1):
-        yList += [i]   
-    for x in range(min(x1,x2), max(x1,x2)+1):
-        gapPixelFound= False
-        newYList =[]
-        for y in range(min(y1,y2), max(y1,y2)+1):
-            if pixels[getIndex(x,y)] < THRESHOLD:
-                newYList += [y] # adds all dark pixels it finds
-        for potentialY in newYList:
-            if potentialY in yList: #checks if any are contiguous with prior row
-                gapPixelFound = True # if so, found a qualified dark pixel on that row
-                yList = newYList #add all to list
-                gapLength += 1
-        if gapPixelFound == False and gapLength <= maxGapLength:
-            return False #failed to find a dark pixel on that column
-    return True #not contiguous 
+#print("isConnected1", isConnected(img,(7,18),(10,12)))
+#print("isConnected2", isConnected(img,(12,18),(19,11)))
+
 
 def contiguousPairs(midsList, img):
     contMidStart = list()
@@ -214,14 +193,13 @@ def contiguousPairs(midsList, img):
                 contMidEnd.append(midsList[coord2])
                 connections += 1
     return (contMidStart, contMidEnd)
-
+'''
 print("\n contiguousPairs: +++++++++++++++++")
 (contMidStart, contMidEnd) = contiguousPairs(midsList, img)
 for i in range(len(contMidStart)):
     print(contMidStart[i], contMidEnd[i])
-
+'''
 def drawMidPoints(app, canvas):
-    canvas.create_text(100,50, text=f'Threshold: {THRESHOLD}', font='Arial 11')
     canvas.create_rectangle(100,100, 380,380)
     for coords in midsList:
         ((x,y))=coords
@@ -230,17 +208,17 @@ def drawMidPoints(app, canvas):
         canvas.create_rectangle(x,y,x+10,y+10, fill="gray")
 
 def drawGrid(app, canvas):
-    pixel0 =100
     pixel28 = 100 + 28*20
     #canvas.create_rectangle(100,100, 380,380)
-    for x in range(pixel0,pixel28, 20):
-        canvas.create_line(x,pixel0,x,pixel28)
-    for y in range(pixel0,pixel28, 20):
-        canvas.create_line(pixel0,y,pixel28,y)
-    for x in range(pixel0,pixel28, 100):
-        canvas.create_line(x,pixel0,x,pixel28, width = 2)
-    for y in range(pixel0,pixel28, 100):
-        canvas.create_line(pixel0,y,pixel28,y, width = 2)
+    for x in range(app.pixel0,pixel28, app.pixWH):
+        canvas.create_line(x,app.pixel0,x,pixel28)
+    for y in range(app.pixel0,pixel28, app.pixWH):
+        canvas.create_line(app.pixel0,y,pixel28,y)
+    for x in range(app.pixel0,pixel28, app.pixWH*5):
+        canvas.create_line(x,app.pixel0,x,pixel28, width = 2)
+    for y in range(app.pixel0,pixel28, app.pixWH*5):
+        canvas.create_line(app.pixel0,y,pixel28,y, width = 2)
+    canvas.create_text(100,700, text =f'sel Coord(row,col) : {app.selRow} , {app.selCol}')
 
 def drawOutline(app, canvas):
     canvas.create_text(100,50, text=f'Threshold: {THRESHOLD}', font='Arial 11')
@@ -295,7 +273,7 @@ def findEnds(app):
                 allUorD = False
             i += 1
         
-    print ("app.ends: ", app.ends)
+    #print ("app.ends: ", app.ends)
 
 
 def testAreContiguous():
