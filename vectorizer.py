@@ -10,7 +10,7 @@ from PIL import Image
 #TODO: figure out how to deal with THRESHOLD instead of as global
 THRESHOLD = 120 # lightness threshold to determine edges of chars
 # 0 is black, 255 is white, letters are light on black background
-img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/6/13.png')
+img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/8/17.png')
 #img.show()
 def appStarted(app):
     app.contigLinesVisible = True 
@@ -31,7 +31,6 @@ def getGridCoords(app,x,y):
 def keyPressed(app, event):
     if event.key.lower() == 'space':
         app.contigLinesVisible = not app.contigLinesVisible
-
 
 def getMidPoints(image): #finds the midpoints, taking horizontal slices
     pixels = list(image.getdata()) # returns one long flattened list: row1, row2, etc
@@ -105,9 +104,7 @@ def getSnake(mids_image,image, segLength=1):
 def areContiguous(image,mid1,mid2): 
     pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
-    (x2,y2) = (mid2[0], mid2[1])
-    if not isConnected(image, mid1,mid2):
-        return False      
+    (x2,y2) = (mid2[0], mid2[1])     
     if abs(x1-x2) > 1 and abs(y1-y2) > 1: 
         m = (y2-y1)/(x2-x1) # m is the slope
         b = y1+.5 -m*(x1+.5) # b is the y intercept
@@ -122,20 +119,20 @@ def areContiguous(image,mid1,mid2):
             xMax = min(largestX,int(max(xStart,xEnd)))# frankly I'm not sure why
             # int works here, I would have thought math.ceil, but it works 
             # and has to do with simple counting
+            xMid = (xMin + xMax)//2
             segPixelFound = False #every row must find a char pixel
-            curRowSegPixels =[] # lists allow for testing contiguity of char pixels between rows
-            # ie. there must be a path to walk over a gap
             #print("xs", xStart,"xe",xEnd)
             for col in range (smallestX,largestX+1):
                 if pixels[getIndex(col,row)] > THRESHOLD:
-                    curRowSegPixels.append(col)
-                    if col >= xMin and col <= xMax: #and col in priorRowSegPixels: #char pixel found
+                    #if col >= xMin and col <= xMax: #and col in priorRowSegPixels: #char pixel found
+                    if col == xMid:
                         segPixelFound = True
                     #print("col: ",col,"cRSP: ", curRowSegPixels, xMin,xMax)
-            priorRowSegPixels = curRowSegPixels
             if segPixelFound == False:
                 #print("fails diag test", col, row, priorRowSegPixels, curRowSegPixels)
                 return False
+    if not isConnected(image, mid1,mid2):
+        return False 
     return True
 
 def isConnected(image,mid1,mid2): 
