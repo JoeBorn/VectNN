@@ -6,33 +6,54 @@ import random, string, math, time
 import PIL
 from PIL import Image 
 
-
-#TODO: figure out how to deal with THRESHOLD instead of as global
-THRESHOLD = 120 # lightness threshold to determine edges of chars
-# 0 is black, 255 is white, letters are light on black background
-img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/8/17.png')
+#TODO: grid screws up when canvas stretched
+  
+img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/9/4.png')
 #img.show()
 def appStarted(app):
     app.contigLinesVisible = True 
-    findEnds(app)
-    app.pixel0 =100
-    app.pixWH = 20
+    app.rows = 28 # a row and col for each pixel 
+    app.cols = 28 # a row and col for each pixel 
     app.selCol = 0
     app.selRow = 0
+    app.margin = 100
+    variables(app)
+    findEnds(app) #TODO this sure shouldn't be here, but where?
+
+def variables(app):
+    app.pixWH = (app.width - 2*app.margin)//app.cols
+    app.threshold = 120 # lightness threshold to determine edges of chars
+    #0 is black, 255 is white, on pngs, letters are light on black background
+
+#grid details derived from: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
+def pointInGrid(app,x,y):
+    return ((app.margin <= x <= app.width - app.margin) and \
+        (app.margin <= y <=app.height -app.margin))
 
 def mousePressed(app, event):
     app.selCol, app.selRow = getGridCoords(app,event.x,event.y)
-    
-def getGridCoords(app,x,y):
-    col = (x-app.pixel0)//app.pixWH
-    row = (y-app.pixel0)//app.pixWH
+
+def getGridCoords(app,x,y): #view to model
+    if not pointInGrid(app,x,y):
+        return (-1,-1)
+    col = int((x-app.margin)/app.pixWH)
+    row = int((y-app.margin)/app.pixWH)
     return col, row
+    
+def getCellUpperLeft(app,row, col):#model to view
+    x1 = app.margin + col*app.pixWH
+    y1 = app.margin + row*app.pixWH
+    return(x1,y1)
+
+def drawSelection(app, canvas):
+    (x1,y1) = getCellUpperLeft(app,app.selRow, app.selCol)
+    canvas.create_rectangle(x1,y1,x1+app.pixWH,y1+app.pixWH, width= 3, fill = None)
 
 def keyPressed(app, event):
     if event.key.lower() == 'space':
         app.contigLinesVisible = not app.contigLinesVisible
 
-def getMidPoints(image): #finds the midpoints, taking horizontal slices
+def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
     pixels = list(image.getdata()) # returns one long flattened list: row1, row2, etc
     (width, height) = img.size #28,28 TODO: is this a global?
     leadEdge = 0
@@ -44,11 +65,11 @@ def getMidPoints(image): #finds the midpoints, taking horizontal slices
         midsImageList.append(255) # 255 is white
     for x in range(width):
         for y in range(height):
-            if pixels[getIndex(x,y)] > THRESHOLD and leadEdge == 0: 
+            if pixels[getIndex(x,y)] > app.threshold and leadEdge == 0: 
                 leadEdge = y # leading edge found
-            if pixels[getIndex(x,y)] <= THRESHOLD and leadEdge != 0: #trailing edge found
+            if pixels[getIndex(x,y)] <= app.threshold and leadEdge != 0: #trailing edge found
                 #TODO remove single pixel "turds"
-                trailEdge = y-1 #TODO: Check, but I think because <=THRESHOLD
+                trailEdge = y-1 #TODO: Check, but I think because <= app.threshold
                 if abs(leadEdge-trailEdge) > vertThreshold:
                     midpoint = leadEdge + 1
                     del midsImageList[getIndex(x,midpoint)] #TODO: is this still needed?
@@ -74,10 +95,8 @@ def getIndex(x,y, width=28):
     i = y*width + x
     return i
 
-midsImageList, midsList, outlineList = getMidPoints(img)
-
-mids_image = Image.new("L",(28,28)) 
-mids_image.putdata(midsImageList)
+#mids_image = Image.new("L",(28,28)) 
+#mids_image.putdata(midsImageList)
 
 #print(midsList)
 #mids_image.save('C:/Users/joebo_000/Downloads/VNN/4_9_mids.png')
@@ -101,7 +120,7 @@ def getSnake(mids_image,image, segLength=1):
 #takes original "image" list and two midpoints(tuple with two ints(row and column coords)) 
 # and returns if they are contiguous
 #presumes that columns aren't more than one apart
-def areContiguous(image,mid1,mid2): 
+def areContiguous(app,image,mid1,mid2): 
     pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])     
@@ -123,7 +142,7 @@ def areContiguous(image,mid1,mid2):
             segPixelFound = False #every row must find a char pixel
             #print("xs", xStart,"xe",xEnd)
             for col in range (smallestX,largestX+1):
-                if pixels[getIndex(col,row)] > THRESHOLD:
+                if pixels[getIndex(col,row)] > app.threshold:
                     #if col >= xMin and col <= xMax: #and col in priorRowSegPixels: #char pixel found
                     if col == xMid:
                         segPixelFound = True
@@ -131,11 +150,11 @@ def areContiguous(image,mid1,mid2):
             if segPixelFound == False:
                 #print("fails diag test", col, row, priorRowSegPixels, curRowSegPixels)
                 return False
-    if not isConnected(image, mid1,mid2):
+    if not isConnected(app,image, mid1,mid2):
         return False 
     return True
 
-def isConnected(image,mid1,mid2): 
+def isConnected(app,image,mid1,mid2): 
     pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
@@ -143,13 +162,13 @@ def isConnected(image,mid1,mid2):
         return True
     elif x1 == x2:
         for row in range(min(y1,y2),max(y1,y2)+1):
-            if pixels[getIndex(x1,row)] < THRESHOLD: #gap found
+            if pixels[getIndex(x1,row)] < app.threshold: #gap found
                 #print("false1")
                 return False
         return True
     elif y1 == y2:
         for col in range(min(x1,x2),max(x1,x2)+1):
-            if pixels[getIndex(col, y1)] < THRESHOLD: #gap found
+            if pixels[getIndex(col, y1)] < app.threshold: #gap found
                 #print("false2")
                 return False
         return True
@@ -161,9 +180,9 @@ def isConnected(image,mid1,mid2):
         if y2 > y1:yinc = 1
         elif y1 > y2:yinc = -1
         else: yinc = 0
-        if pixels[getIndex(x2,y2-yinc)] > THRESHOLD and isConnected(image,(x1,y1),(x2,y2-yinc)):
+        if pixels[getIndex(x2,y2-yinc)] > app.threshold and isConnected(app,image,(x1,y1),(x2,y2-yinc)):
             return True
-        elif pixels[getIndex(x2-xinc,y2)] > THRESHOLD and isConnected(image,(x1,y1),(x2-xinc,y2)):
+        elif pixels[getIndex(x2-xinc,y2)] > app.threshold and isConnected(app,image,(x1,y1),(x2-xinc,y2)):
             return True
         else:
             #print("false3")
@@ -173,7 +192,7 @@ def isConnected(image,mid1,mid2):
 #print("isConnected2", isConnected(img,(12,18),(19,11)))
 
 
-def contiguousPairs(midsList, img):
+def contiguousPairs(app,midsList, img):
     contMidStart = list()
     contMidEnd = list()
     maxConnections = 100 #TODO: think about this.effectively eliminated for now 
@@ -183,9 +202,7 @@ def contiguousPairs(midsList, img):
         connections = 0
         for coord2 in range(len(midsList)):
             if connections <= maxConnections and coord1 != coord2 and \
-                areContiguous(img,midsList[coord1], midsList[coord2]):
-                #distanceSq = (midsList[coord1][0]-midsList[coord2][0])**2 + \
-                #(midsList[coord1][1]-midsList[coord2][1])**2
+                areContiguous(app,img,midsList[coord1], midsList[coord2]):
                 contMidStart.append(midsList[coord1])
                 contMidEnd.append(midsList[coord2])
                 connections += 1
@@ -198,6 +215,7 @@ for i in range(len(contMidStart)):
 '''
 def drawMidPoints(app, canvas):
     canvas.create_rectangle(100,100, 380,380)
+    midsImageList, midsList, outlineList = getMidPoints(app,img)
     for coords in midsList:
         ((x,y))=coords
         x=105+x*20
@@ -205,20 +223,21 @@ def drawMidPoints(app, canvas):
         canvas.create_rectangle(x,y,x+10,y+10, fill="gray")
 
 def drawGrid(app, canvas):
-    pixel28 = 100 + 28*20
-    #canvas.create_rectangle(100,100, 380,380)
-    for x in range(app.pixel0,pixel28, app.pixWH):
-        canvas.create_line(x,app.pixel0,x,pixel28)
-    for y in range(app.pixel0,pixel28, app.pixWH):
-        canvas.create_line(app.pixel0,y,pixel28,y)
-    for x in range(app.pixel0,pixel28, app.pixWH*5):
-        canvas.create_line(x,app.pixel0,x,pixel28, width = 2)
-    for y in range(app.pixel0,pixel28, app.pixWH*5):
-        canvas.create_line(app.pixel0,y,pixel28,y, width = 2)
+    rEdge = app.width - app.margin + 1
+    bEdge = app.height - app.margin + 1
+    for x in range(app.margin,rEdge, app.pixWH):
+        canvas.create_line(x,app.margin,x,bEdge)
+    for y in range(app.margin,bEdge, app.pixWH):
+        canvas.create_line(app.margin,y,rEdge,y)
+    for x in range(app.margin,rEdge, app.pixWH*5):
+        canvas.create_line(x,app.margin,x,bEdge, width = 2)
+    for y in range(app.margin,rEdge, app.pixWH*5):
+        canvas.create_line(app.margin,y,bEdge,y, width = 2)
     canvas.create_text(100,700, text =f'sel Coord(row,col) : {app.selRow} , {app.selCol}')
 
 def drawOutline(app, canvas):
-    canvas.create_text(100,50, text=f'Threshold: {THRESHOLD}', font='Arial 11')
+    canvas.create_text(100,50, text=f'Threshold: {app.threshold}', font='Arial 11')
+    midsImageList, midsList, outlineList = getMidPoints(app,img)
     for coords in outlineList:
         ((x,y))=coords
         x=100+x*20
@@ -226,9 +245,10 @@ def drawOutline(app, canvas):
         canvas.create_rectangle(x,y,x+20,y+20, fill ="lightgray")
 
 def drawContiguousConnections(app, canvas):
+    midsImageList, midsList, outlineList = getMidPoints(app,img)
     if app.contigLinesVisible == True:
         offset = 110# from 0,0 to center of pertinent pixel
-        (contMidStart, contMidEnd) = contiguousPairs(midsList, img)
+        (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img)
         for i in range(len(contMidStart)):
             (x1,y1) = contMidStart[i]
             (x1,y1) = offset + x1*20, offset + y1*20 
@@ -241,37 +261,45 @@ def drawEnds(app, canvas):
     for (x,y) in app.ends:
         x = offset + x*20
         y = offset + y*20
-        r = 13
-        canvas.create_oval(x-r,y-r,x+r,y+r, width = 2, outline = "green", fill = None)
+        r = 15
+        canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "green", fill = None)
 
 def findEnds(app):
     ''' go through all the midpoints & apply two part test: 1 end has all 
     connected points in "one direction", ie up down, left, right etc &
     2. those connected points must be connected to one another '''
-    (contMidStart, contMidEnd) = contiguousPairs(midsList, img) #copied from drawContiguousConnections
+    midsImageList, midsList, outlineList = getMidPoints(app,img)
+    (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img) #copied from drawContiguousConnections
     app.ends = []
     i = 1 #TODO missing the last midpoint? first, it's missing something
     allRorL = True # all contMidEnds are on one side of contMidStart
     allUorD = True # all contMidEnds are above or all are below contMidStart
+    allConnected = True
     while i < len(contMidStart):
         if contMidStart[i] != contMidStart[i-1] or i == len(contMidStart)-1:
-            if allRorL or allUorD: # if it has only one pair, it's an end
+            if (allRorL or allUorD) and allConnected: # if it has only one pair, it's an end
                 app.ends.append(contMidStart[i-1]) 
             i += 1
             allRorL = True # reset checks
-            allUorD = True 
-        else: #if it's a repeat then perform the checks.
+            allUorD = True
+            allConnected = True 
+        else: #if it's an additional mid connection then perform the checks.
             (x1,y1) = contMidStart[i] 
             (x2,y2) = contMidEnd[i-1]
             (x3,y3) = contMidEnd[i]
-            if (x2-x1)*(x3-x1) <= 0:
-                allRorL = False
+            if (x2-x1)*(x3-x1) <= 0: 
+                allRorL = False #they aren't all to one side
             if (y2-y1)*(y3-y1) <= 0:
-                allUorD = False
+                allUorD = False #they aren't all above (or below)
+            if not areContiguous(app,img,(x2,y2),(x3,y3)):
+                allConnected = False #the connections aren't connected to each other
+                # ie it's not an end, just a side of a curve
             i += 1
         
     #print ("app.ends: ", app.ends)
 
+def timerFired(app):
+    variables(app)
 
 def testAreContiguous():
     print("Testing areContiguous()...", end="")
@@ -289,10 +317,12 @@ def redrawAll(app, canvas):
     drawEnds(app, canvas)
     #drawSnake(app, canvas)
     #testAreContiguous()
+    drawSelection(app, canvas)
 
 def main():
     #cs112_s21_week4_linter.lint()
-    runApp(width=1000, height=800)
+    runApp(width=760, height=760)
+    #findEnds(app) #TODO where to put this?
     
 
 if __name__ == '__main__':
