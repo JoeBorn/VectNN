@@ -8,10 +8,11 @@ from PIL import Image
 
 #TODO: grid screws up when canvas stretched
   
-img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/9/4.png')
+img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/4/61.png')
 #img.show()
 def appStarted(app):
-    app.contigLinesVisible = True 
+    app.contigLinesVisible = True
+    app.oneContigVis = False
     app.rows = 28 # a row and col for each pixel 
     app.cols = 28 # a row and col for each pixel 
     app.selCol = 0
@@ -52,6 +53,9 @@ def drawSelection(app, canvas):
 def keyPressed(app, event):
     if event.key.lower() == 'space':
         app.contigLinesVisible = not app.contigLinesVisible
+def keyPressed(app, event):
+    if event.key.lower() == 'o':
+        app.oneContigVis = not app.oneContigVis        
 
 def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
     pixels = list(image.getdata()) # returns one long flattened list: row1, row2, etc
@@ -246,7 +250,7 @@ def drawOutline(app, canvas):
 
 def drawContiguousConnections(app, canvas):
     midsImageList, midsList, outlineList = getMidPoints(app,img)
-    if app.contigLinesVisible == True:
+    if app.contigLinesVisible == True: #TODO: something wrong here 
         offset = 110# from 0,0 to center of pertinent pixel
         (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img)
         for i in range(len(contMidStart)):
@@ -254,7 +258,14 @@ def drawContiguousConnections(app, canvas):
             (x1,y1) = offset + x1*20, offset + y1*20 
             (x2,y2) = contMidEnd[i]
             (x2,y2) = offset + x2*20, offset + y2*20
-            canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
+            if app.oneContigVis == True:
+                (xs,ys) = getCellUpperLeft(app,app.selRow, app.selCol)
+                (xs,ys) = (xs+10,ys+10)
+                if app.selRow == 0 and app.selCol == 0: 
+                    canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
+                elif (x1 == xs) and (y1 == ys): 
+                    canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
+                
 
 def drawEnds(app, canvas):
     offset = 110 #TODO fix local var used multiple places
@@ -264,6 +275,14 @@ def drawEnds(app, canvas):
         r = 15
         canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "green", fill = None)
 
+def drawBends(app, canvas):
+    offset = 110 #TODO fix local var used multiple places
+    for (x,y) in app.bends:
+        x = offset + x*20
+        y = offset + y*20
+        r = 15
+        canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "blue", fill = None)
+
 def findEnds(app):
     ''' go through all the midpoints & apply two part test: 1 end has all 
     connected points in "one direction", ie up down, left, right etc &
@@ -271,14 +290,18 @@ def findEnds(app):
     midsImageList, midsList, outlineList = getMidPoints(app,img)
     (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img) #copied from drawContiguousConnections
     app.ends = []
+    app.bends = []
     i = 1 #TODO missing the last midpoint? first, it's missing something
     allRorL = True # all contMidEnds are on one side of contMidStart
     allUorD = True # all contMidEnds are above or all are below contMidStart
     allConnected = True
     while i < len(contMidStart):
         if contMidStart[i] != contMidStart[i-1] or i == len(contMidStart)-1:
-            if (allRorL or allUorD) and allConnected: # if it has only one pair, it's an end
-                app.ends.append(contMidStart[i-1]) 
+            if (allRorL or allUorD):
+                if not allConnected:
+                    app.bends.append(contMidStart[i-1])
+                else: # if it has only one pair, it's an end
+                    app.ends.append(contMidStart[i-1]) 
             i += 1
             allRorL = True # reset checks
             allUorD = True
@@ -293,7 +316,7 @@ def findEnds(app):
                 allUorD = False #they aren't all above (or below)
             if not areContiguous(app,img,(x2,y2),(x3,y3)):
                 allConnected = False #the connections aren't connected to each other
-                # ie it's not an end, just a side of a curve
+                # ie it's not an end, just a side of a curve, a "bend"
             i += 1
         
     #print ("app.ends: ", app.ends)
@@ -315,6 +338,7 @@ def redrawAll(app, canvas):
     drawMidPoints(app, canvas)
     drawContiguousConnections(app, canvas)
     drawEnds(app, canvas)
+    drawBends(app, canvas)
     #drawSnake(app, canvas)
     #testAreContiguous()
     drawSelection(app, canvas)
