@@ -8,7 +8,7 @@ from PIL import Image
 
 #TODO: grid screws up when canvas stretched
   
-img = Image.open('C:/Users/joebo/Downloads/mnist_all_files/training/4/61.png')
+img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/4/61.png')
 #img.show()
 def appStarted(app):
     app.contigLinesVisible = True
@@ -18,8 +18,11 @@ def appStarted(app):
     app.selCol = 0
     app.selRow = 0
     app.margin = 100
+    app.offset = app.margin + 10 # from 0,0 to the center of a cell
     variables(app)
     findEnds(app) #TODO this sure shouldn't be here, but where?
+    getMidPoints(app, img)
+    getTrace(app)
 
 def variables(app):
     app.pixWH = (app.width - 2*app.margin)//app.cols
@@ -99,40 +102,79 @@ def getIndex(x,y, width=28):
     i = y*width + x
     return i
 
-#mids_image = Image.new("L",(28,28)) 
-#mids_image.putdata(midsImageList)
+def getTrace(app):
+    trace = []
+    #start with the end closest to 0,0
+    minDist = 10**10
+    if app.ends != []:
+        for (col,row) in app.ends:
+            dist = math.sqrt(row**2 + col**2)
+            if dist < minDist:
+                minDist = dist
+                (startCol, startRow) = (col,row)
+    # if no end, start with the bend closest to 0,0
+    else:
+        for (col, row) in app.bends:
+            dist = math.sqrt(row**2 + col**2)
+            if dist < minDist:
+                minDist = dist
+                (startCol, startRow) = (col,row)
+    trace.append((startCol, startRow))
+    #connect to farthest contiguous point
+    midsImageList, midsList, outlineList = getMidPoints(app,img)# TODO eliminate all the calls to gMP, put midslist etc in app...
+    (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img)
+    tempContMidStart = [] +contMidStart
+    tempContMidEnd = [] + contMidEnd
+    while True:
+        maxDist = 0
+        index = tempContMidStart.index((startCol,startRow))
+        (col1,row1) = tempContMidStart[index]
+        (col2,row2) = tempContMidEnd[index]
+        (endCol, endRow) = (col2,row2)
+        while (col1,row1) == (startCol, startRow):
+            dist = math.sqrt((col2-startCol)**2 + (row2-startRow)**2)
+            if dist > maxDist:
+                maxDist = dist
+                (endCol,endRow) = (col2,row2)
+            index += 1
+            (col1,row1) = tempContMidStart[index]
+            (col2,row2) = tempContMidEnd[index]
+        trace.append((endCol,endRow))
+        index = tempContMidStart.index((startCol,startRow)) #TODO: fix duplicate code
+        (col1,row1) = tempContMidStart[index]
+        (col2,row2) = tempContMidEnd[index]
+        while (col1, row1) == (startCol, startRow):
+            dist = math.sqrt((col2-startCol)**2 + (row2-startRow)**2)
+            if dist < maxDist and areContiguous(app,img,(startCol,startRow),(col2,row2)) and \
+            areContiguous(app,img,(endCol,endRow),(col2,row2)):
+                tempContMidStart.pop(index)
+                tempContMidEnd.pop(index)
+            index += 1
+            (col1,row1) = tempContMidStart[index]
+            (col2,row2) = tempContMidEnd[index]
+        if index == len(tempContMidStart)-1:
+            print (trace)
+            return trace
+        (startCol, startRow) = (endCol,endRow)       
 
-#print(midsList)
-#mids_image.save('C:/Users/joebo_000/Downloads/VNN/4_9_mids.png')
-#mids_image.show()
 
-#returns a list of (segLength) length vector angles 
-# + starting and ending point coordinates, and number of segments
-#TODO: resolve conflict between one end and start with potentially 
-#multiple segments
 
-def getSnake(mids_image,image, segLength=1):
-    #start at beginning of midsList 
-    # (smallest x (smallest y within that if more than one x))
-    #check x+1 and x+2
-    #if no left, the mark as start and go right
-    # if left, keep going until no more left (recursion base case)
-    #if no right, mark end and return segment
-
-    return snake,startPoint,endPoint,segments
+    # put all midpoints "passed" in a skipped over list
+    #"passed" means closer to the from mid point and within 45 degrees +- of the chosen (farthest point)
+    #from chosen point choose farthest contiguous point (ignoring all skipped points)
+    #done when no midpoints are left (either because they were chosen or skipped)
+    pass
 
 #takes original "image" list and two midpoints(tuple with two ints(row and column coords)) 
 # and returns if they are contiguous
 #presumes that columns aren't more than one apart
 def areContiguous(app,image,mid1,mid2): 
-    pixels = list(image.getdata()) 
+    app.pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])     
     if abs(x1-x2) > 1 and abs(y1-y2) > 1: 
         m = (y2-y1)/(x2-x1) # m is the slope
         b = y1+.5 -m*(x1+.5) # b is the y intercept
-        priorRowSegPixels = [i for i in range(min(x1,x2),max(x1,x2)+1)]
-        #print("PRSP: ", priorRowSegPixels)
         for row in range(min(y1,y2),max(y1,y2)+1):
             xStart = (row-b)/m
             xEnd = (row +1-b)/m
@@ -146,7 +188,7 @@ def areContiguous(app,image,mid1,mid2):
             segPixelFound = False #every row must find a char pixel
             #print("xs", xStart,"xe",xEnd)
             for col in range (smallestX,largestX+1):
-                if pixels[getIndex(col,row)] > app.threshold:
+                if app.pixels[getIndex(col,row)] > app.threshold:
                     #if col >= xMin and col <= xMax: #and col in priorRowSegPixels: #char pixel found
                     if col == xMid:
                         segPixelFound = True
@@ -154,25 +196,25 @@ def areContiguous(app,image,mid1,mid2):
             if segPixelFound == False:
                 #print("fails diag test", col, row, priorRowSegPixels, curRowSegPixels)
                 return False
-    if not isConnected(app,image, mid1,mid2):
+    if not isConnected(app, mid1,mid2):
         return False 
     return True
 
-def isConnected(app,image,mid1,mid2): 
-    pixels = list(image.getdata()) 
+def isConnected(app,mid1,mid2): 
+    #app.pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     if abs(x1-x2)==1 and abs(y1-y2)==1: #by definition so to speak
         return True
     elif x1 == x2:
         for row in range(min(y1,y2),max(y1,y2)+1):
-            if pixels[getIndex(x1,row)] < app.threshold: #gap found
+            if app.pixels[getIndex(x1,row)] < app.threshold: #gap found
                 #print("false1")
                 return False
         return True
     elif y1 == y2:
         for col in range(min(x1,x2),max(x1,x2)+1):
-            if pixels[getIndex(col, y1)] < app.threshold: #gap found
+            if app.pixels[getIndex(col, y1)] < app.threshold: #gap found
                 #print("false2")
                 return False
         return True
@@ -184,9 +226,9 @@ def isConnected(app,image,mid1,mid2):
         if y2 > y1:yinc = 1
         elif y1 > y2:yinc = -1
         else: yinc = 0
-        if pixels[getIndex(x2,y2-yinc)] > app.threshold and isConnected(app,image,(x1,y1),(x2,y2-yinc)):
+        if app.pixels[getIndex(x2,y2-yinc)] > app.threshold and isConnected(app,(x1,y1),(x2,y2-yinc)):
             return True
-        elif pixels[getIndex(x2-xinc,y2)] > app.threshold and isConnected(app,image,(x1,y1),(x2-xinc,y2)):
+        elif app.pixels[getIndex(x2-xinc,y2)] > app.threshold and isConnected(app,(x1,y1),(x2-xinc,y2)):
             return True
         else:
             #print("false3")
@@ -251,13 +293,12 @@ def drawOutline(app, canvas):
 def drawContiguousConnections(app, canvas):
     midsImageList, midsList, outlineList = getMidPoints(app,img)
     if app.contigLinesVisible == True: #TODO: something wrong here 
-        offset = 110# from 0,0 to center of pertinent pixel
         (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img)
         for i in range(len(contMidStart)):
             (x1,y1) = contMidStart[i]
-            (x1,y1) = offset + x1*20, offset + y1*20 
+            (x1,y1) = app.offset + x1*20, app.offset + y1*20 
             (x2,y2) = contMidEnd[i]
-            (x2,y2) = offset + x2*20, offset + y2*20
+            (x2,y2) = app.offset + x2*20, app.offset + y2*20
             if app.oneContigVis == True:
                 (xs,ys) = getCellUpperLeft(app,app.selRow, app.selCol)
                 (xs,ys) = (xs+10,ys+10)
@@ -266,20 +307,17 @@ def drawContiguousConnections(app, canvas):
                 elif (x1 == xs) and (y1 == ys): 
                     canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
                 
-
 def drawEnds(app, canvas):
-    offset = 110 #TODO fix local var used multiple places
-    for (x,y) in app.ends:
-        x = offset + x*20
-        y = offset + y*20
+    for (col,row) in app.ends: # TODO fix this to match row, col convention
+        x = app.offset + col*20
+        y = app.offset + row*20
         r = 15
         canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "green", fill = None)
 
-def drawBends(app, canvas):
-    offset = 110 #TODO fix local var used multiple places
-    for (x,y) in app.bends:
-        x = offset + x*20
-        y = offset + y*20
+def drawBends(app, canvas): # TODO fix this to match row, col convention
+    for (col,row) in app.bends:
+        x = app.offset + col*20
+        y = app.offset + row*20
         r = 15
         canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "blue", fill = None)
 
