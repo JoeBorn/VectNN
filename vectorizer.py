@@ -8,7 +8,7 @@ from PIL import Image
 
 #TODO: grid screws up when canvas stretched
   
-img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/4/61.png')
+img = Image.open('C:/Users/joebo/Downloads/mnist_all_files/training/4/61.png')
 #img.show()
 def appStarted(app):
     app.contigLinesVisible = True
