@@ -8,7 +8,7 @@ from PIL import Image
 
 #TODO: grid screws up when canvas stretched
   
-img = Image.open('C:/Users/joebo/Downloads/mnist_all_files/training/4/61.png')
+img = Image.open('C:/mnist/mnist_all_files/training/4/61.png')
 #img.show()
 def appStarted(app):
     app.contigLinesVisible = True
@@ -131,7 +131,7 @@ def getTrace(app):
         (col1,row1) = tempContMidStart[index]
         (col2,row2) = tempContMidEnd[index]
         (endCol, endRow) = (col2,row2)
-        while (col1,row1) == (startCol, startRow):
+        while (col1,row1) == (startCol, startRow): #
             dist = math.sqrt((col2-startCol)**2 + (row2-startRow)**2)
             if dist > maxDist:
                 maxDist = dist
@@ -161,16 +161,16 @@ def getTrace(app):
             (col1,row1) = tempContMidStart[index2]
             (col2,row2) = tempContMidEnd[index2] 
         print ("index: ", index)
-        print (trace)
+        #print (trace)
         if index == len(tempContMidStart)-1:
-            print (trace)
+            print ("index at end", trace)
             return trace
         (startCol, startRow) = (endCol,endRow)       
 
 
 
     # put all midpoints "passed" in a skipped over list
-    #"passed" means closer to the from mid point and within 45 degrees +- of the chosen (farthest point)
+    #"passed" means closer to the from mid point and contiguous to both
     #from chosen point choose farthest contiguous point (ignoring all skipped points)
     #done when no midpoints are left (either because they were chosen or skipped)
     pass
