@@ -8,7 +8,7 @@ from PIL import Image
 
 #TODO: grid screws up when canvas stretched
   
-img = Image.open('C:/Users/joebo_000/Downloads/VNN/mnist_all_files/training/4/61.png')
+img = Image.open('C:/Users/joebo/Downloads/mnist_all_files/training/4/61.png')
 #img.show()
 def appStarted(app):
     app.contigLinesVisible = True
@@ -139,19 +139,29 @@ def getTrace(app):
             index += 1
             (col1,row1) = tempContMidStart[index]
             (col2,row2) = tempContMidEnd[index]
-        trace.append((endCol,endRow))
-        index = tempContMidStart.index((startCol,startRow)) #TODO: fix duplicate code
-        (col1,row1) = tempContMidStart[index]
-        (col2,row2) = tempContMidEnd[index]
+        trace.append((endCol,endRow)) #adds farthest endpoint to trace list
+        print ("index at point one:", index)
+        #goes back to remove all nearer points
+        index2 = tempContMidStart.index((startCol,startRow)) #TODO: fix duplicate code
+        (col1,row1) = tempContMidStart[index2]
+        (col2,row2) = tempContMidEnd[index2]
         while (col1, row1) == (startCol, startRow):
             dist = math.sqrt((col2-startCol)**2 + (row2-startRow)**2)
             if dist < maxDist and areContiguous(app,img,(startCol,startRow),(col2,row2)) and \
             areContiguous(app,img,(endCol,endRow),(col2,row2)):
-                tempContMidStart.pop(index)
-                tempContMidEnd.pop(index)
-            index += 1
-            (col1,row1) = tempContMidStart[index]
-            (col2,row2) = tempContMidEnd[index]
+                tempContMidStart.pop(index2)
+                tempContMidEnd.pop(index2)
+                #remove nearer end points from subsequent appearances in the lists
+                while tempContMidEnd.count((col2,row2)) > 0:
+                    index3 = tempContMidEnd.index((col2,row2))
+                    tempContMidStart.pop(index3)
+                    tempContMidEnd.pop(index3)
+
+            index2 += 1
+            (col1,row1) = tempContMidStart[index2]
+            (col2,row2) = tempContMidEnd[index2] 
+        print ("index: ", index)
+        print (trace)
         if index == len(tempContMidStart)-1:
             print (trace)
             return trace
