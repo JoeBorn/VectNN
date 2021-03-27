@@ -3,11 +3,11 @@ all rights reserved '''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
 import random, string, math, time
-import PIL
+import PIL, copy
 from PIL import Image 
 
 #TODO: grid screws up when canvas stretched
-file = 'C:/mnist/mnist_all_files/training/5/0.png'  
+file = 'C:/mnist/mnist_all_files/training/4/9.png'  
 img = Image.open(file)
 #img.show()
 def appStarted(app):
@@ -64,7 +64,7 @@ def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
     pixels = list(image.getdata()) # returns one long flattened list: row1, row2, etc
     (width, height) = img.size #28,28 TODO: is this a global?
     leadEdge = 0
-    vertThreshold = 7 # length of vertical segment to break up with multi points
+    vertThreshold = 5 # length of vertical segment to break up with multi points
     midsImageList = list() #a list that collects the midpoint pixels into a format PIL can create a PNG, etc
     midsList = list() # a list of the coordinate tuples of the midpoints
     outlineList = list() # list of leading and trailing edges, should form an outline
@@ -102,52 +102,80 @@ def getIndex(x,y, width=28):
     i = y*width + x
     return i
 
-def getTrace(app):
-    app.trace = []
-    #start with the end closest to 0,0
+def getEndsBends(app):
     minDist = 10**10
     if app.ends != []:
         for (col,row) in app.ends:
+            print("tempAppEnds: ", app.ends)
             dist = math.sqrt(row**2 + col**2)
             if dist < minDist:
                 minDist = dist
                 (startCol, startRow) = (col,row)
+        app.ends.remove((startCol,startRow))
+        return (startCol, startRow)
     #if no end, start with the bend closest to 0,0
-    else:
+    elif app.bends != []:
         for (col, row) in app.bends:
             dist = math.sqrt(row**2 + col**2)
             if dist < minDist:
                 minDist = dist
                 (startCol, startRow) = (col,row)
+        app.bends.remove((startCol,startRow))# mistake- this removes each end in order (or should anyway)
+        return (startCol, startRow)
+    else: return (None, None)
+
+def getTrace(app):
+    app.trace = []
+    #start with the end closest to 0,0
+    (startCol, startRow) = getEndsBends(app)
+    print(startCol, startRow)
     app.trace.append((startCol, startRow))
     #connect to farthest contiguous point
     midsImageList, midsList, outlineList = getMidPoints(app,img)# TODO eliminate all the calls to gMP, put midslist etc in app...
-    for i in range(len(midsList)): #TODO: fix it keeps adding some last item.
+    while len(midsList) > 1:
+        print ("ML prior: ", midsList)
         maxDistance = 0
         for coord in midsList:
-            if areContiguous (app,img,(startCol, startRow),coord):
+            if areContiguous(app,img,(startCol, startRow),coord):
                 (x,y) =(coord) #TODO: pick one, it's either row, col or x,y
                 dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
                 if dist > maxDistance:
                     maxDistance = dist
                     (endX, endY) = (x,y)
-        app.trace.append((endX,endY))
+                    print("endX,endY", x,y)
+        if maxDistance >= 1: app.trace.append((endX,endY))
         if (startCol,startRow) in midsList: midsList.remove((startCol,startRow))
         index = 0
         while index < (len(midsList)):
-            if areContiguous (app,img,(startCol, startRow),midsList[index]) and \
+            if areContiguous(app,img,(startCol, startRow),midsList[index]) and \
                 areContiguous(app,img, (endX,endY), midsList[index]):
                 (x,y) = midsList[index]
                 dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
+                print ("x,y,dist: ", x,y,dist, end = " ")
                 if dist <= maxDistance:
                     midsList.pop(index)
+                    if (x,y) in app.ends: app.ends.remove((x,y))
+                    if (x,y) in app.bends: app.bends.remove((x,y))
                 else: index += 1
             else: index += 1
-        (startCol,startRow) = (endX,endY)
-        #midsList.remove((endX,endY))
+        if (startCol,startRow) != (endX,endY):
+            (startCol,startRow) = (endX,endY)
+        else:
+            (startCol,startRow)= getEndsBends(app)
+            if (startCol,startRow) == (None,None): break
+            else:
+                app.trace.append("gap") 
+                app.trace.append((startCol, startRow))
+        if (endX,endY) in midsList: midsList.remove((endX,endY))
+        print("app.trace", app.trace)
+        print("ML after: ",midsList)
+        #input("press any key")
+    if areContiguous(app,img,app.trace[0],app.trace[-1]):
+        print("close the loop")
+        app.trace.append(app.trace[0])
     print (app.trace) 
 
-    # put all midpoints "passed" in a skipped over list
+    # delete all midpoints "passed"
     #"passed" means closer to the from mid point and contiguous to both
     #from chosen point choose farthest contiguous point (ignoring all skipped points)
     #done when no midpoints are left (either because they were chosen or skipped)
@@ -349,11 +377,12 @@ def findEnds(app):
 
 def drawTrace(app, canvas):
     for i in range(1,len(app.trace)):
-        (x1,y1) = app.trace[i-1]
-        (x1,y1) = app.offset + x1*20, app.offset + y1*20 
-        (x2,y2) = app.trace[i]
-        (x2,y2) = app.offset + x2*20, app.offset + y2*20
-        canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 3)
+        if app.trace[i-1] != "gap" and app.trace[i] !="gap":
+            (x1,y1) = app.trace[i-1]
+            (x1,y1) = app.offset + x1*20, app.offset + y1*20 
+            (x2,y2) = app.trace[i]
+            (x2,y2) = app.offset + x2*20, app.offset + y2*20
+            canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 3)
 
 
 def timerFired(app):
