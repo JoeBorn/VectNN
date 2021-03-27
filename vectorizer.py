@@ -103,7 +103,7 @@ def getIndex(x,y, width=28):
     return i
 
 def getTrace(app):
-    trace = []
+    app.trace = []
     #start with the end closest to 0,0
     minDist = 10**10
     if app.ends != []:
@@ -112,62 +112,38 @@ def getTrace(app):
             if dist < minDist:
                 minDist = dist
                 (startCol, startRow) = (col,row)
-    # if no end, start with the bend closest to 0,0
+    #if no end, start with the bend closest to 0,0
     else:
         for (col, row) in app.bends:
             dist = math.sqrt(row**2 + col**2)
             if dist < minDist:
                 minDist = dist
                 (startCol, startRow) = (col,row)
-    trace.append((startCol, startRow))
+    app.trace.append((startCol, startRow))
     #connect to farthest contiguous point
     midsImageList, midsList, outlineList = getMidPoints(app,img)# TODO eliminate all the calls to gMP, put midslist etc in app...
-    (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img)
-    tempContMidStart = [] +contMidStart
-    tempContMidEnd = [] + contMidEnd
-    while True:
-        maxDist = 0
-        index = tempContMidStart.index((startCol,startRow))
-        (col1,row1) = tempContMidStart[index]
-        (col2,row2) = tempContMidEnd[index]
-        (endCol, endRow) = (col2,row2)
-        while (col1,row1) == (startCol, startRow): #
-            dist = math.sqrt((col2-startCol)**2 + (row2-startRow)**2)
-            if dist > maxDist:
-                maxDist = dist
-                (endCol,endRow) = (col2,row2)
-            index += 1
-            (col1,row1) = tempContMidStart[index]
-            (col2,row2) = tempContMidEnd[index]
-        trace.append((endCol,endRow)) #adds farthest endpoint to trace list
-        print ("index at point one:", index)
-        #goes back to remove all nearer points
-        index2 = tempContMidStart.index((startCol,startRow)) #TODO: fix duplicate code
-        (col1,row1) = tempContMidStart[index2]
-        (col2,row2) = tempContMidEnd[index2]
-        while (col1, row1) == (startCol, startRow):
-            dist = math.sqrt((col2-startCol)**2 + (row2-startRow)**2)
-            if dist < maxDist and areContiguous(app,img,(startCol,startRow),(col2,row2)) and \
-            areContiguous(app,img,(endCol,endRow),(col2,row2)):
-                tempContMidStart.pop(index2)
-                tempContMidEnd.pop(index2)
-                #remove nearer end points from subsequent appearances in the lists
-                while tempContMidEnd.count((col2,row2)) > 0:
-                    index3 = tempContMidEnd.index((col2,row2))
-                    tempContMidStart.pop(index3)
-                    tempContMidEnd.pop(index3)
-
-            index2 += 1
-            (col1,row1) = tempContMidStart[index2]
-            (col2,row2) = tempContMidEnd[index2] 
-        print ("index: ", index)
-        #print (trace)
-        if index == len(tempContMidStart)-1:
-            print ("index at end", trace)
-            return trace
-        (startCol, startRow) = (endCol,endRow)       
-
-
+    for i in range(len(midsList)): #TODO: fix it keeps adding some last item.
+        maxDistance = 0
+        for coord in midsList:
+            if areContiguous (app,img,(startCol, startRow),coord):
+                (x,y) =(coord)
+                dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
+                if dist > maxDistance:
+                    maxDistance = dist
+                    (endX, endY) = (x,y)
+        app.trace.append((endX,endY))
+        if (startCol,startRow) in midsList: midsList.remove((startCol,startRow))
+        index = 0
+        while index < (len(midsList)):
+            if areContiguous (app,img,(startCol, startRow),coord):
+                (x,y) = midsList[index]
+                dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
+                if dist <= maxDistance:
+                    midsList.pop(index)
+                else: index += 1
+            else: index += 1
+        (startCol,startRow) = (endX,endY)
+    print (app.trace) 
 
     # put all midpoints "passed" in a skipped over list
     #"passed" means closer to the from mid point and contiguous to both
@@ -369,6 +345,15 @@ def findEnds(app):
         
     #print ("app.ends: ", app.ends)
 
+def drawTrace(app, canvas):
+    for i in range(1,len(app.trace)):
+        (x1,y1) = app.trace[i-1]
+        (x1,y1) = app.offset + x1*20, app.offset + y1*20 
+        (x2,y2) = app.trace[i]
+        (x2,y2) = app.offset + x2*20, app.offset + y2*20
+        canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 2)
+
+
 def timerFired(app):
     variables(app)
 
@@ -390,6 +375,7 @@ def redrawAll(app, canvas):
     #drawSnake(app, canvas)
     #testAreContiguous()
     drawSelection(app, canvas)
+    drawTrace(app, canvas)
 
 def main():
     #cs112_s21_week4_linter.lint()
