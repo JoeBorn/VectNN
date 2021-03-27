@@ -7,8 +7,8 @@ import PIL
 from PIL import Image 
 
 #TODO: grid screws up when canvas stretched
-  
-img = Image.open('C:/mnist/mnist_all_files/training/4/61.png')
+file = 'C:/mnist/mnist_all_files/training/5/0.png'  
+img = Image.open(file)
 #img.show()
 def appStarted(app):
     app.contigLinesVisible = True
@@ -126,7 +126,7 @@ def getTrace(app):
         maxDistance = 0
         for coord in midsList:
             if areContiguous (app,img,(startCol, startRow),coord):
-                (x,y) =(coord)
+                (x,y) =(coord) #TODO: pick one, it's either row, col or x,y
                 dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
                 if dist > maxDistance:
                     maxDistance = dist
@@ -135,7 +135,8 @@ def getTrace(app):
         if (startCol,startRow) in midsList: midsList.remove((startCol,startRow))
         index = 0
         while index < (len(midsList)):
-            if areContiguous (app,img,(startCol, startRow),coord):
+            if areContiguous (app,img,(startCol, startRow),midsList[index]) and \
+                areContiguous(app,img, (endX,endY), midsList[index]):
                 (x,y) = midsList[index]
                 dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
                 if dist <= maxDistance:
@@ -143,6 +144,7 @@ def getTrace(app):
                 else: index += 1
             else: index += 1
         (startCol,startRow) = (endX,endY)
+        #midsList.remove((endX,endY))
     print (app.trace) 
 
     # put all midpoints "passed" in a skipped over list
@@ -268,7 +270,7 @@ def drawGrid(app, canvas):
     canvas.create_text(100,700, text =f'sel Coord(row,col) : {app.selRow} , {app.selCol}')
 
 def drawOutline(app, canvas):
-    canvas.create_text(100,50, text=f'Threshold: {app.threshold}', font='Arial 11')
+    canvas.create_text(100,50, text=f'Threshold: {app.threshold}    {file}', font='Courier 11 bold', anchor = 'w')
     midsImageList, midsList, outlineList = getMidPoints(app,img)
     for coords in outlineList:
         ((x,y))=coords
@@ -351,7 +353,7 @@ def drawTrace(app, canvas):
         (x1,y1) = app.offset + x1*20, app.offset + y1*20 
         (x2,y2) = app.trace[i]
         (x2,y2) = app.offset + x2*20, app.offset + y2*20
-        canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 2)
+        canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 3)
 
 
 def timerFired(app):
@@ -365,17 +367,14 @@ def testAreContiguous():
 
 
 def redrawAll(app, canvas):
-    #drawCharacter(app, canvas)
     drawGrid(app,canvas)
     drawOutline(app, canvas)
     drawMidPoints(app, canvas)
-    drawContiguousConnections(app, canvas)
     drawEnds(app, canvas)
     drawBends(app, canvas)
-    #drawSnake(app, canvas)
-    #testAreContiguous()
     drawSelection(app, canvas)
     drawTrace(app, canvas)
+    drawContiguousConnections(app, canvas)
 
 def main():
     #cs112_s21_week4_linter.lint()
