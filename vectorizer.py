@@ -7,7 +7,7 @@ import PIL, copy
 from PIL import Image 
 
 #TODO: grid screws up when canvas stretched
-file = 'C:/mnist/mnist_all_files/training/4/9.png'  
+file = 'C:/mnist/mnist_all_files/training/0/69.png'  
 img = Image.open(file)
 #img.show()
 def appStarted(app):
@@ -128,41 +128,49 @@ def getTrace(app):
     app.trace = []
     #start with the end closest to 0,0
     (startCol, startRow) = getEndsBends(app)
-    print(startCol, startRow)
     app.trace.append((startCol, startRow))
     #connect to farthest contiguous point
     midsImageList, midsList, outlineList = getMidPoints(app,img)# TODO eliminate all the calls to gMP, put midslist etc in app...
     while len(midsList) > 1:
+        traceIndex = app.trace.index((startCol,startRow))
         print ("ML prior: ", midsList)
         maxDistance = 0
-        for coord in midsList:
-            if areContiguous(app,img,(startCol, startRow),coord):
-                (x,y) =(coord) #TODO: pick one, it's either row, col or x,y
-                dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
+        for index in range(len(midsList)):
+            if areContiguous(app,img,(startCol, startRow),midsList[index]):
+                (x,y) = midsList[index] #TODO: pick one, it's either row, col or x,y
+                if traceIndex == 0 or app.trace[traceIndex-1] == 'gap':
+                    dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
+                else:
+                    (priorX,priorY)= app.trace[traceIndex - 1]
+                    dist = math.sqrt((priorX - x)**2 +(priorY - y)**2)
                 if dist > maxDistance:
                     maxDistance = dist
                     (endX, endY) = (x,y)
-                    print("endX,endY", x,y)
+                    #print("endX,endY", x,y)
         if maxDistance >= 1: app.trace.append((endX,endY))
         if (startCol,startRow) in midsList: midsList.remove((startCol,startRow))
         index = 0
-        while index < (len(midsList)):
+        while index < (len(midsList)): #removes intermediate points from ML
             if areContiguous(app,img,(startCol, startRow),midsList[index]) and \
                 areContiguous(app,img, (endX,endY), midsList[index]):
                 (x,y) = midsList[index]
-                dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
-                print ("x,y,dist: ", x,y,dist, end = " ")
+                if traceIndex == 0 or app.trace[traceIndex -1] == "gap":
+                    dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
+                else:
+                    (priorX,priorY)= app.trace[traceIndex - 1]
+                    dist = math.sqrt((priorX - x)**2 +(priorY - y)**2)
+                #print ("x,y,dist: ", x,y,dist, end = " ")
                 if dist <= maxDistance:
                     midsList.pop(index)
                     if (x,y) in app.ends: app.ends.remove((x,y))
                     if (x,y) in app.bends: app.bends.remove((x,y))
                 else: index += 1
             else: index += 1
-        if (startCol,startRow) != (endX,endY):
+        if (startCol,startRow) != (endX,endY): # it found a new connection point
             (startCol,startRow) = (endX,endY)
-        else:
+        else: #failing that, make sure all ends/bends are connected
             (startCol,startRow)= getEndsBends(app)
-            if (startCol,startRow) == (None,None): break
+            if (startCol,startRow) == (None,None): break #if ends/bends gone,we're done
             else:
                 app.trace.append("gap") 
                 app.trace.append((startCol, startRow))
@@ -171,15 +179,14 @@ def getTrace(app):
         print("ML after: ",midsList)
         #input("press any key")
     if areContiguous(app,img,app.trace[0],app.trace[-1]):
-        print("close the loop")
-        app.trace.append(app.trace[0])
+        app.trace.append(app.trace[0]) #closing the loop on closed chars
     print (app.trace) 
 
     # delete all midpoints "passed"
     #"passed" means closer to the from mid point and contiguous to both
     #from chosen point choose farthest contiguous point (ignoring all skipped points)
     #done when no midpoints are left (either because they were chosen or skipped)
-    pass
+
 
 #takes original "image" list and two midpoints(tuple with two ints(row and column coords)) 
 # and returns if they are contiguous
@@ -187,32 +194,33 @@ def getTrace(app):
 def areContiguous(app,image,mid1,mid2): 
     app.pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
-    (x2,y2) = (mid2[0], mid2[1])     
+    (x2,y2) = (mid2[0], mid2[1])
+    largestX = max(x1,x2)
+    smallestX = min(x1,x2)     
     if abs(x1-x2) > 1 and abs(y1-y2) > 1: 
         m = (y2-y1)/(x2-x1) # m is the slope
         b = y1+.5 -m*(x1+.5) # b is the y intercept
         for row in range(min(y1,y2),max(y1,y2)+1):
             xStart = (row-b)/m
             xEnd = (row +1-b)/m
-            largestX = max(x1,x2)
-            smallestX = min(x1,x2)
             xMin = max(smallestX,int(min(xStart,xEnd)))
             xMax = min(largestX,int(max(xStart,xEnd)))# frankly I'm not sure why
             # int works here, I would have thought math.ceil, but it works 
             # and has to do with simple counting
             xMid = (xMin + xMax)//2
+            if app.pixels[getIndex(xMid,row)] < app.threshold:
+                return False
+            '''    
             segPixelFound = False #every row must find a char pixel
-            #print("xs", xStart,"xe",xEnd)
             for col in range (smallestX,largestX+1):
                 if app.pixels[getIndex(col,row)] > app.threshold:
-                    #if col >= xMin and col <= xMax: #and col in priorRowSegPixels: #char pixel found
-                    if col == xMid:
+                    if col == xMid: # this is the more restrictive test, the midpoint pixel must be a char pixel
                         segPixelFound = True
-                    #print("col: ",col,"cRSP: ", curRowSegPixels, xMin,xMax)
             if segPixelFound == False:
-                #print("fails diag test", col, row, priorRowSegPixels, curRowSegPixels)
-                return False
+                print("fails diag test") #, col, row, priorRowSegPixels, curRowSegPixels)
+                return False'''
     if not isConnected(app, mid1,mid2):
+        print ("fails isConnected")
         return False 
     return True
 
@@ -250,7 +258,7 @@ def isConnected(app,mid1,mid2):
             #print("false3")
             return False    
 
-#print("isConnected1", isConnected(img,(7,18),(10,12)))
+#print("isConnected1", isConnected(img,(19,7),(17,14)))
 #print("isConnected2", isConnected(img,(12,18),(19,11)))
 
 
@@ -404,11 +412,12 @@ def redrawAll(app, canvas):
     drawSelection(app, canvas)
     drawTrace(app, canvas)
     drawContiguousConnections(app, canvas)
+    
+    
 
 def main():
     #cs112_s21_week4_linter.lint()
     runApp(width=760, height=760)
-    #findEnds(app) #TODO where to put this?
     
 
 if __name__ == '__main__':
