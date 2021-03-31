@@ -208,17 +208,10 @@ def areContiguous(app,image,mid1,mid2):
             # int works here, I would have thought math.ceil, but it works 
             # and has to do with simple counting
             xMid = (xMin + xMax)//2
+            #requiring the char pixel in xMid is the more restrictive case, but 
+            #seems to work ok.
             if app.pixels[getIndex(xMid,row)] < app.threshold:
                 return False
-            '''    
-            segPixelFound = False #every row must find a char pixel
-            for col in range (smallestX,largestX+1):
-                if app.pixels[getIndex(col,row)] > app.threshold:
-                    if col == xMid: # this is the more restrictive test, the midpoint pixel must be a char pixel
-                        segPixelFound = True
-            if segPixelFound == False:
-                print("fails diag test") #, col, row, priorRowSegPixels, curRowSegPixels)
-                return False'''
     if not isConnected(app, mid1,mid2):
         print ("fails isConnected")
         return False 
