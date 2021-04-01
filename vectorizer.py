@@ -5,9 +5,10 @@ from cmu_112_graphics import *
 import random, string, math, time
 import PIL, copy
 from PIL import Image 
+import decimal
 
 #TODO: grid screws up when canvas stretched
-file = 'C:/mnist/mnist_all_files/training/0/69.png'  
+file = 'C:/mnist/mnist_all_files/training/1/224.png'  
 img = Image.open(file)
 #img.show()
 def appStarted(app):
@@ -28,6 +29,13 @@ def variables(app):
     app.pixWH = (app.width - 2*app.margin)//app.cols
     app.threshold = 120 # lightness threshold to determine edges of chars
     #0 is black, 255 is white, on pngs, letters are light on black background
+
+def roundHalfUp(d):
+    # Round to nearest with ties going away from zero.
+    rounding = decimal.ROUND_HALF_UP
+    # See other rounding options here:
+    # https://docs.python.org/3/library/decimal.html#rounding-modes
+    return int(decimal.Decimal(d).to_integral_value(rounding=rounding))
 
 #grid details derived from: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
 def pointInGrid(app,x,y):
@@ -133,7 +141,7 @@ def getTrace(app):
     midsImageList, midsList, outlineList = getMidPoints(app,img)# TODO eliminate all the calls to gMP, put midslist etc in app...
     while len(midsList) > 1:
         traceIndex = app.trace.index((startCol,startRow))
-        print ("ML prior: ", midsList)
+        #print ("ML prior: ", midsList)
         maxDistance = 0
         for index in range(len(midsList)):
             if areContiguous(app,img,(startCol, startRow),midsList[index]):
@@ -175,12 +183,12 @@ def getTrace(app):
                 app.trace.append("gap") 
                 app.trace.append((startCol, startRow))
         if (endX,endY) in midsList: midsList.remove((endX,endY))
-        print("app.trace", app.trace)
-        print("ML after: ",midsList)
+        #print("app.trace", app.trace)
+        #print("ML after: ",midsList)
         #input("press any key")
     if areContiguous(app,img,app.trace[0],app.trace[-1]):
         app.trace.append(app.trace[0]) #closing the loop on closed chars
-    print (app.trace) 
+    #print (app.trace) 
 
     # delete all midpoints "passed"
     #"passed" means closer to the from mid point and contiguous to both
@@ -204,7 +212,7 @@ def areContiguous(app,image,mid1,mid2):
             xStart = (row-b)/m
             xEnd = (row +1-b)/m
             xMin = max(smallestX,int(min(xStart,xEnd)))
-            xMax = min(largestX,int(max(xStart,xEnd)))# frankly I'm not sure why
+            xMax = min(largestX,roundHalfUp(max(xStart,xEnd)))# frankly I'm not sure why
             # int works here, I would have thought math.ceil, but it works 
             # and has to do with simple counting
             xMid = (xMin + xMax)//2
@@ -213,7 +221,6 @@ def areContiguous(app,image,mid1,mid2):
             if app.pixels[getIndex(xMid,row)] < app.threshold:
                 return False
     if not isConnected(app, mid1,mid2):
-        print ("fails isConnected")
         return False 
     return True
 
@@ -226,34 +233,27 @@ def isConnected(app,mid1,mid2):
     elif x1 == x2:
         for row in range(min(y1,y2),max(y1,y2)+1):
             if app.pixels[getIndex(x1,row)] < app.threshold: #gap found
-                #print("false1")
                 return False
         return True
     elif y1 == y2:
         for col in range(min(x1,x2),max(x1,x2)+1):
             if app.pixels[getIndex(col, y1)] < app.threshold: #gap found
-                #print("false2")
                 return False
         return True
     else:
         #print("rec coords: ", x1,y1,x2,y2)
-        if x2 > x1: xinc = 1
-        elif x1 > x2: xinc = -1
-        else: xinc = 0
-        if y2 > y1:yinc = 1
-        elif y1 > y2:yinc = -1
-        else: yinc = 0
-        if app.pixels[getIndex(x2,y2-yinc)] > app.threshold and isConnected(app,(x1,y1),(x2,y2-yinc)):
+        if x2 > x1: dx = 1
+        elif x1 > x2: dx = -1
+        else: dx = 0
+        if y2 > y1:dy = 1
+        elif y1 > y2:dy = -1
+        else: dy = 0
+        if app.pixels[getIndex(x2,y2-dy)] > app.threshold and isConnected(app,(x1,y1),(x2,y2-dy)):
             return True
-        elif app.pixels[getIndex(x2-xinc,y2)] > app.threshold and isConnected(app,(x1,y1),(x2-xinc,y2)):
+        elif app.pixels[getIndex(x2-dx,y2)] > app.threshold and isConnected(app,(x1,y1),(x2-dx,y2)):
             return True
         else:
-            #print("false3")
             return False    
-
-#print("isConnected1", isConnected(img,(19,7),(17,14)))
-#print("isConnected2", isConnected(img,(12,18),(19,11)))
-
 
 def contiguousPairs(app,midsList, img):
     contMidStart = list()
