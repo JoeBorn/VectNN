@@ -8,7 +8,7 @@ from PIL import Image
 import decimal
 
 #TODO: grid screws up when canvas stretched
-file = 'C:/mnist/mnist_all_files/training/1/224.png'  
+file = 'C:/mnist/mnist_all_files/training/8/368.png'  
 img = Image.open(file)
 #img.show()
 def appStarted(app):
@@ -179,6 +179,7 @@ def getTrace(app):
         else: #failing that, make sure all ends/bends are connected
             (startCol,startRow)= getEndsBends(app)
             if (startCol,startRow) == (None,None): break #if ends/bends gone,we're done
+            #TODO: sometimes, leaves ends unconnected, see notes on 4/336.png
             else:
                 app.trace.append("gap") 
                 app.trace.append((startCol, startRow))
@@ -388,6 +389,7 @@ def drawTrace(app, canvas):
 
 def timerFired(app):
     variables(app)
+    findEnds(app)
 
 def testAreContiguous():
     print("Testing areContiguous()...", end="")
