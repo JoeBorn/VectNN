@@ -8,7 +8,7 @@ from PIL import Image
 import decimal
 
 #TODO: grid screws up when canvas stretched
-file = 'C:/mnist/mnist_all_files/training/1/24.png'  
+file = 'C:/mnist/mnist_all_files/training/7/10394.png'  
 img = Image.open(file)
 #img.show()
 def appStarted(app):
@@ -73,11 +73,8 @@ def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
     (width, height) = img.size #28,28 TODO: is this a global?
     leadEdge = 0
     vertThreshold = 5 # length of vertical segment to break up with multi points
-    midsImageList = list() #a list that collects the midpoint pixels into a format PIL can create a PNG, etc
     midsList = list() # a list of the coordinate tuples of the midpoints
     outlineList = list() # list of leading and trailing edges, should form an outline
-    for i in range(width*height):
-        midsImageList.append(255) # 255 is white
     for x in range(width):
         for y in range(height):
             if pixels[getIndex(x,y)] > app.threshold and leadEdge == 0: 
@@ -87,13 +84,8 @@ def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
                 trailEdge = y-1 #TODO: Check, but I think because <= app.threshold
                 if abs(leadEdge-trailEdge) > vertThreshold:
                     midpoint = leadEdge + 1
-                    del midsImageList[getIndex(x,midpoint)] #TODO: is this still needed?
-                    #clean up if not
-                    midsImageList.insert(getIndex(x,midpoint), 0)
                     midsList.append((x,midpoint))
                     midpoint = trailEdge -1
-                    del midsImageList[getIndex(x,midpoint)]
-                    midsImageList.insert(getIndex(x,midpoint), 0)
                     midsList.append((x,midpoint))
                 else:
                     midpoint = round((leadEdge + trailEdge)/2)
@@ -102,7 +94,7 @@ def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
                     outlineList.append((x,y))# because <=THRESHOLD trigger
                 #print("x,y,m: ",x,y,midpoint, end = "__")
                 leadEdge = 0      
-    return midsImageList, midsList,outlineList
+    return midsList,outlineList
 
 #gets index out of a flattened list given x and y coords of the image
 #list stores pixels by rows, starting with top
@@ -138,7 +130,7 @@ def getTrace(app):
     (startCol, startRow) = getEndsBends(app)
     app.trace.append((startCol, startRow))
     #connect to farthest contiguous point
-    midsImageList, midsList, outlineList = getMidPoints(app,img)# TODO eliminate all the calls to gMP, put midslist etc in app...
+    midsList, outlineList = getMidPoints(app,img)# TODO eliminate all the calls to gMP, put midslist etc in app...
     while len(midsList) > 1:
         traceIndex = app.trace.index((startCol,startRow))
         #print ("ML prior: ", midsList)
@@ -279,7 +271,7 @@ for i in range(len(contMidStart)):
 '''
 def drawMidPoints(app, canvas):
     canvas.create_rectangle(100,100, 380,380)
-    midsImageList, midsList, outlineList = getMidPoints(app,img)
+    midsList, outlineList = getMidPoints(app,img)
     for coords in midsList:
         ((x,y))=coords
         x=105+x*20
@@ -301,7 +293,7 @@ def drawGrid(app, canvas):
 
 def drawOutline(app, canvas):
     canvas.create_text(100,50, text=f'Threshold: {app.threshold}    {file}', font='Courier 11 bold', anchor = 'w')
-    midsImageList, midsList, outlineList = getMidPoints(app,img)
+    midsList, outlineList = getMidPoints(app,img)
     for coords in outlineList:
         ((x,y))=coords
         x=100+x*20
@@ -309,7 +301,7 @@ def drawOutline(app, canvas):
         canvas.create_rectangle(x,y,x+20,y+20, fill ="lightgray")
 
 def drawContiguousConnections(app, canvas):
-    midsImageList, midsList, outlineList = getMidPoints(app,img)
+    midsList, outlineList = getMidPoints(app,img)
     if app.contigLinesVisible == True: #TODO: something wrong here 
         (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img)
         for i in range(len(contMidStart)):
@@ -343,7 +335,7 @@ def findEnds(app):
     ''' go through all the midpoints & apply two part test: 1 end has all 
     connected points in "one direction", ie up down, left, right etc &
     2. those connected points must be connected to one another '''
-    midsImageList, midsList, outlineList = getMidPoints(app,img)
+    midsList, outlineList = getMidPoints(app,img)
     (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img) #copied from drawContiguousConnections
     app.ends = []
     app.bends = []

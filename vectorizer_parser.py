@@ -29,18 +29,19 @@ def appStarted(app):
     #getTrace(app)
 
 def openFile(app):
-    for i in range(6,9):
-        path = f'C:/mnist/mnist_all_files/training/{i}/'
-        for filename in glob.glob(os.path.join(path, '*.png')):
-            with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
-                app.img = Image.open(filename)
-                findEnds(app)
-                getTrace(app)
-                
-            with open('mnist_1_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
-                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
-                traceWriter.writerow(traceConverter(i,app))
-        print(f"done! no {i}")
+    #for i in range(6,9):
+    path = f'C:/mnist/mnist_all_files/training/7/'
+    for filename in glob.glob(os.path.join(path, '*.png')):
+        with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
+            app.img = Image.open(filename)
+            print(filename)
+            findEnds(app)
+            getTrace(app)
+            
+        with open('mnist_1_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+            traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+            traceWriter.writerow(traceConverter("7b",app))
+    print(f"done! no 7")
 
 def traceConverter(i,app):
     result = [i]
@@ -252,8 +253,7 @@ def areContiguous(app,mid1,mid2):
         return False 
     return True
 
-def isConnected(app,mid1,mid2): 
-    #app.pixels = list(image.getdata()) 
+def isConnected(app,mid1,mid2):  
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     if abs(x1-x2)==1 and abs(y1-y2)==1: #by definition so to speak
