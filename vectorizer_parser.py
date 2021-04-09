@@ -29,19 +29,19 @@ def appStarted(app):
     #getTrace(app)
 
 def openFile(app):
-    #for i in range(6,9):
-    path = f'C:/mnist/mnist_all_files/training/7/'
-    for filename in glob.glob(os.path.join(path, '*.png')):
-        with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
-            app.img = Image.open(filename)
-            print(filename)
-            findEnds(app)
-            getTrace(app)
-            
-        with open('mnist_1_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
-            traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
-            traceWriter.writerow(traceConverter("7b",app))
-    print(f"done! no 7")
+    for i in range(2,10):
+        path = f'C:/mnist/mnist_all_files/testing/{i}/'
+        for filename in glob.glob(os.path.join(path, '*.png')):
+            with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
+                app.img = Image.open(filename)
+                #print(filename)
+                findEnds(app)
+                getTrace(app)
+                
+            with open('mnist_1_testing.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+                traceWriter.writerow(traceConverter(i,app))
+    print(f"done! no {i}")
 
 def traceConverter(i,app):
     result = [i]
@@ -135,7 +135,7 @@ def getMidPoints(app): #finds the midpoints, taking horizontal slices
 #gets index out of a flattened list given x and y coords of the image
 #list stores pixels by rows, starting with top
 def getIndex(x,y, width=28):
-    i = y*width + x
+    i = (y-1)*width + x-1
     return i
 
 def getEndsBends(app):
@@ -172,6 +172,7 @@ def getTrace(app):
         #print ("ML prior: ", midsList)
         maxDistance = 0
         for index in range(len(midsList)):
+            if (startCol,startRow) == (None,None): break #TODO Fix
             if areContiguous(app,(startCol, startRow),midsList[index]):
                 (x,y) = midsList[index] #TODO: pick one, it's either row, col or x,y
                 if traceIndex == 0 or app.trace[traceIndex-1] == 'gap':
@@ -187,6 +188,7 @@ def getTrace(app):
         if (startCol,startRow) in midsList: midsList.remove((startCol,startRow))
         index = 0
         while index < (len(midsList)): #removes intermediate points from ML
+            if (startCol,startRow) == (None,None): break #TODO Fix
             if areContiguous(app,(startCol, startRow),midsList[index]) and \
                 areContiguous(app, (endX,endY), midsList[index]):
                 (x,y) = midsList[index]
