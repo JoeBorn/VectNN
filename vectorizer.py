@@ -25,6 +25,8 @@ def appStarted(app):
     getMidPoints(app, img)
     getTrace(app)
 
+
+
 def variables(app):
     app.pixWH = (app.width - 2*app.margin)//app.cols
     app.threshold = 120 # lightness threshold to determine edges of chars
@@ -99,7 +101,7 @@ def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
 #gets index out of a flattened list given x and y coords of the image
 #list stores pixels by rows, starting with top
 def getIndex(x,y, width=28):
-    i = y*width + x
+    i = (y-1)*width + (x-1)
     return i
 
 def getEndsBends(app):
@@ -241,6 +243,7 @@ def isConnected(app,mid1,mid2):
         if y2 > y1:dy = 1
         elif y1 > y2:dy = -1
         else: dy = 0
+        if getIndex(x2-dx,y2) > 783: print(getIndex(x2-dx,y2),x2,dx,y2)
         if app.pixels[getIndex(x2,y2-dy)] > app.threshold and isConnected(app,(x1,y1),(x2,y2-dy)):
             return True
         elif app.pixels[getIndex(x2-dx,y2)] > app.threshold and isConnected(app,(x1,y1),(x2-dx,y2)):
