@@ -6,10 +6,19 @@ import random, string, math, time
 import PIL, copy
 from PIL import Image 
 import decimal
-import csv
-import glob
+
+from tkinter import Tk     # from tkinter import Tk for Python 3.x
+from tkinter.filedialog import askopenfilename
+#https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
+Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+file = askopenfilename() # show an "Open" dialog box and return the path to the selected file
+print(file)
 
 
+#TODO: grid screws up when canvas stretched
+#file = 'C:/GitHub/VectNN/JB_4.bmp'
+#file = 'C:/mnist/mnist_all_files/training/7/10394.png'  
+img = Image.open(file)
 #img.show()
 def appStarted(app):
     app.contigLinesVisible = True
@@ -20,13 +29,10 @@ def appStarted(app):
     app.selRow = 0
     app.margin = 100
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
-    app.ends = []
-    app.bends = []
     variables(app)
-    openFile(app)
-    #findEnds(app) #TODO this sure shouldn't be here, but where?
-    #getMidPoints(app)
-    #getTrace(app)
+    findEnds(app) #TODO this sure shouldn't be here, but where?
+    getMidPoints(app, img)
+    getTrace(app)
 
 def openFile(app):
     for i in range(2,10):
@@ -51,7 +57,6 @@ def traceConverter(i,app):
             result.append(x)
             result.append(y)
     return result
-
 
 def variables(app):
     app.pixWH = (app.width - 2*app.margin)//app.cols
@@ -96,16 +101,13 @@ def keyPressed(app, event):
     if event.key.lower() == 'o':
         app.oneContigVis = not app.oneContigVis        
 
-def getMidPoints(app): #finds the midpoints, taking horizontal slices
-    pixels = list(app.img.getdata()) # returns one long flattened list: row1, row2, etc
-    (width, height) = app.img.size #28,28 
+def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
+    pixels = list(image.getdata()) # returns one long flattened list: row1, row2, etc
+    (width, height) = img.size #28,28 TODO: is this a global?
     leadEdge = 0
     vertThreshold = 5 # length of vertical segment to break up with multi points
-    midsImageList = list() #a list that collects the midpoint pixels into a format PIL can create a PNG, etc
     midsList = list() # a list of the coordinate tuples of the midpoints
     outlineList = list() # list of leading and trailing edges, should form an outline
-    for i in range(width*height):
-        midsImageList.append(255) # 255 is white
     for x in range(width):
         for y in range(height):
             if pixels[getIndex(x,y)] > app.threshold and leadEdge == 0: 
@@ -115,13 +117,8 @@ def getMidPoints(app): #finds the midpoints, taking horizontal slices
                 trailEdge = y-1 #TODO: Check, but I think because <= app.threshold
                 if abs(leadEdge-trailEdge) > vertThreshold:
                     midpoint = leadEdge + 1
-                    #del midsImageList[getIndex(x,midpoint)] #TODO: is this still needed?
-                    #clean up if not
-                    #midsImageList.insert(getIndex(x,midpoint), 0)
                     midsList.append((x,midpoint))
                     midpoint = trailEdge -1
-                    #del midsImageList[getIndex(x,midpoint)]
-                    #midsImageList.insert(getIndex(x,midpoint), 0)
                     midsList.append((x,midpoint))
                 else:
                     midpoint = round((leadEdge + trailEdge)/2)
@@ -130,19 +127,19 @@ def getMidPoints(app): #finds the midpoints, taking horizontal slices
                     outlineList.append((x,y))# because <=THRESHOLD trigger
                 #print("x,y,m: ",x,y,midpoint, end = "__")
                 leadEdge = 0      
-    return midsImageList, midsList,outlineList
+    return midsList,outlineList
 
 #gets index out of a flattened list given x and y coords of the image
 #list stores pixels by rows, starting with top
 def getIndex(x,y, width=28):
-    i = (y-1)*width + x-1
+    i = (y)*width + (x)#TODO y-1, x-1 fixed an out of index error in the parser, but seriously screws things up
     return i
 
 def getEndsBends(app):
     minDist = 10**10
     if app.ends != []:
         for (col,row) in app.ends:
-            #print("tempAppEnds: ", app.ends)
+            print("tempAppEnds: ", app.ends)
             dist = math.sqrt(row**2 + col**2)
             if dist < minDist:
                 minDist = dist
@@ -166,14 +163,13 @@ def getTrace(app):
     (startCol, startRow) = getEndsBends(app)
     app.trace.append((startCol, startRow))
     #connect to farthest contiguous point
-    midsImageList, midsList, outlineList = getMidPoints(app)# TODO eliminate all the calls to gMP, put midslist etc in app...
+    midsList, outlineList = getMidPoints(app,img)# TODO eliminate all the calls to gMP, put midslist etc in app...
     while len(midsList) > 1:
         traceIndex = app.trace.index((startCol,startRow))
         #print ("ML prior: ", midsList)
         maxDistance = 0
         for index in range(len(midsList)):
-            if (startCol,startRow) == (None,None): break #TODO Fix
-            if areContiguous(app,(startCol, startRow),midsList[index]):
+            if areContiguous(app,img,(startCol, startRow),midsList[index]):
                 (x,y) = midsList[index] #TODO: pick one, it's either row, col or x,y
                 if traceIndex == 0 or app.trace[traceIndex-1] == 'gap':
                     dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
@@ -188,9 +184,8 @@ def getTrace(app):
         if (startCol,startRow) in midsList: midsList.remove((startCol,startRow))
         index = 0
         while index < (len(midsList)): #removes intermediate points from ML
-            if (startCol,startRow) == (None,None): break #TODO Fix
-            if areContiguous(app,(startCol, startRow),midsList[index]) and \
-                areContiguous(app, (endX,endY), midsList[index]):
+            if areContiguous(app,img,(startCol, startRow),midsList[index]) and \
+                areContiguous(app,img, (endX,endY), midsList[index]):
                 (x,y) = midsList[index]
                 if traceIndex == 0 or app.trace[traceIndex -1] == "gap":
                     dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
@@ -209,7 +204,7 @@ def getTrace(app):
         else: #failing that, make sure all ends/bends are connected
             (startCol,startRow)= getEndsBends(app)
             if (startCol,startRow) == (None,None): break #if ends/bends gone,we're done
-            #TODO: sometimes, leaves ends unconnected, see notes on 4/336.png
+            #TODO: sometimes leaves ends unconnected, see notes on 4/336.png
             else:
                 app.trace.append("gap") 
                 app.trace.append((startCol, startRow))
@@ -217,7 +212,7 @@ def getTrace(app):
         #print("app.trace", app.trace)
         #print("ML after: ",midsList)
         #input("press any key")
-    if areContiguous(app,app.trace[0],app.trace[-1]):
+    if areContiguous(app,img,app.trace[0],app.trace[-1]):
         app.trace.append(app.trace[0]) #closing the loop on closed chars
     #print (app.trace) 
 
@@ -229,9 +224,8 @@ def getTrace(app):
 
 #takes original "image" list and two midpoints(tuple with two ints(row and column coords)) 
 # and returns if they are contiguous
-#presumes that columns aren't more than one apart
-def areContiguous(app,mid1,mid2): 
-    app.pixels = list(app.img.getdata()) 
+def areContiguous(app,image,mid1,mid2): 
+    app.pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     largestX = max(x1,x2)
@@ -243,9 +237,7 @@ def areContiguous(app,mid1,mid2):
             xStart = (row-b)/m
             xEnd = (row +1-b)/m
             xMin = max(smallestX,int(min(xStart,xEnd)))
-            xMax = min(largestX,roundHalfUp(max(xStart,xEnd)))# frankly I'm not sure why
-            # int works here, I would have thought math.ceil, but it works 
-            # and has to do with simple counting
+            xMax = min(largestX,roundHalfUp(max(xStart,xEnd)))
             xMid = (xMin + xMax)//2
             #requiring the char pixel in xMid is the more restrictive case, but 
             #seems to work ok.
@@ -255,7 +247,7 @@ def areContiguous(app,mid1,mid2):
         return False 
     return True
 
-def isConnected(app,mid1,mid2):  
+def isConnected(app,mid1,mid2): 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     if abs(x1-x2)==1 and abs(y1-y2)==1: #by definition so to speak
@@ -278,6 +270,7 @@ def isConnected(app,mid1,mid2):
         if y2 > y1:dy = 1
         elif y1 > y2:dy = -1
         else: dy = 0
+        if getIndex(x2-dx,y2) > 783: print(getIndex(x2-dx,y2),x2,dx,y2)
         if app.pixels[getIndex(x2,y2-dy)] > app.threshold and isConnected(app,(x1,y1),(x2,y2-dy)):
             return True
         elif app.pixels[getIndex(x2-dx,y2)] > app.threshold and isConnected(app,(x1,y1),(x2-dx,y2)):
@@ -285,7 +278,7 @@ def isConnected(app,mid1,mid2):
         else:
             return False    
 
-def contiguousPairs(app,midsList):
+def contiguousPairs(app,midsList, img):
     contMidStart = list()
     contMidEnd = list()
     maxConnections = 100 #TODO: think about this.effectively eliminated for now 
@@ -295,7 +288,7 @@ def contiguousPairs(app,midsList):
         connections = 0
         for coord2 in range(len(midsList)):
             if connections <= maxConnections and coord1 != coord2 and \
-                areContiguous(app,midsList[coord1], midsList[coord2]):
+                areContiguous(app,img,midsList[coord1], midsList[coord2]):
                 contMidStart.append(midsList[coord1])
                 contMidEnd.append(midsList[coord2])
                 connections += 1
@@ -308,7 +301,7 @@ for i in range(len(contMidStart)):
 '''
 def drawMidPoints(app, canvas):
     canvas.create_rectangle(100,100, 380,380)
-    midsImageList, midsList, outlineList = getMidPoints(app)
+    midsList, outlineList = getMidPoints(app,img)
     for coords in midsList:
         ((x,y))=coords
         x=105+x*20
@@ -330,7 +323,7 @@ def drawGrid(app, canvas):
 
 def drawOutline(app, canvas):
     canvas.create_text(100,50, text=f'Threshold: {app.threshold}    {file}', font='Courier 11 bold', anchor = 'w')
-    midsImageList, midsList, outlineList = getMidPoints(app)
+    midsList, outlineList = getMidPoints(app,img)
     for coords in outlineList:
         ((x,y))=coords
         x=100+x*20
@@ -338,9 +331,9 @@ def drawOutline(app, canvas):
         canvas.create_rectangle(x,y,x+20,y+20, fill ="lightgray")
 
 def drawContiguousConnections(app, canvas):
-    midsImageList, midsList, outlineList = getMidPoints(app)
+    midsList, outlineList = getMidPoints(app,img)
     if app.contigLinesVisible == True: #TODO: something wrong here 
-        (contMidStart, contMidEnd) = contiguousPairs(app,midsList)
+        (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img)
         for i in range(len(contMidStart)):
             (x1,y1) = contMidStart[i]
             (x1,y1) = app.offset + x1*20, app.offset + y1*20 
@@ -372,8 +365,8 @@ def findEnds(app):
     ''' go through all the midpoints & apply two part test: 1 end has all 
     connected points in "one direction", ie up down, left, right etc &
     2. those connected points must be connected to one another '''
-    midsImageList, midsList, outlineList = getMidPoints(app)
-    (contMidStart, contMidEnd) = contiguousPairs(app,midsList) #copied from drawContiguousConnections
+    midsList, outlineList = getMidPoints(app,img)
+    (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img) #copied from drawContiguousConnections
     app.ends = []
     app.bends = []
     i = 1 #TODO missing the last midpoint? first, it's missing something
@@ -399,7 +392,7 @@ def findEnds(app):
                 allRorL = False #they aren't all to one side
             if (y2-y1)*(y3-y1) <= 0:
                 allUorD = False #they aren't all above (or below)
-            if not areContiguous(app,(x2,y2),(x3,y3)):
+            if not areContiguous(app,img,(x2,y2),(x3,y3)):
                 allConnected = False #the connections aren't connected to each other
                 # ie it's not an end, just a side of a curve, a "bend"
             i += 1
@@ -420,7 +413,13 @@ def timerFired(app):
     variables(app)
     findEnds(app)
 
-'''
+def testAreContiguous():
+    print("Testing areContiguous()...", end="")
+    #assert(areContiguous(img,(9,17),(10,10)) == False)
+    assert(areContiguous(img,(8,21),(9,17)) == False)
+    print("Passed!")
+
+
 def redrawAll(app, canvas):
     drawGrid(app,canvas)
     drawOutline(app, canvas)
@@ -430,8 +429,8 @@ def redrawAll(app, canvas):
     drawSelection(app, canvas)
     drawTrace(app, canvas)
     drawContiguousConnections(app, canvas)
-'''    
- 
+    
+    
 
 def main():
     #cs112_s21_week4_linter.lint()
