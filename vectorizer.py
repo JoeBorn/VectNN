@@ -8,7 +8,8 @@ from PIL import Image
 import decimal
 
 #TODO: grid screws up when canvas stretched
-file = 'C:/mnist/mnist_all_files/training/7/10394.png'  
+file = 'C:/GitHub/VectNN/JB_4.bmp'
+#file = 'C:/mnist/mnist_all_files/training/7/10394.png'  
 img = Image.open(file)
 #img.show()
 def appStarted(app):
