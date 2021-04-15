@@ -41,33 +41,20 @@ from numpy import int32
 from tensorflow import keras #different syntax, taken from https://colab.research.google.com/drive/1554Yoj9uIRyeeYLX6fPJqC9ZBgnXiSjX?usp=sharing
 from sklearn.model_selection import train_test_split
 from tensorflow.keras import layers
-#from tensorflow.keras.layers.experimental import preprocessing
-#from tensorflow.keras.preprocessing.sequence import pad_sequences # necessary?  idk https://colab.research.google.com/github/lmoroney/dlaicourse/blob/master/TensorFlow%20In%20Practice/Course%203%20-%20NLP/Course%203%20-%20Week%201%20-%20Lesson%202.ipynb
-
-#1st csv file is here: https://drive.google.com/file/d/15wHU7o7GUr0242AbNdj_wqLbbM9MCVsx/view?usp=sharing
-
 
 csv_file = 'C:/GitHub/VectNN/mnist_1_training_mostall_mod.csv'
 csv_test_file = 'C:/GitHub/VectNN/mnist_1_testing_mod.csv'
 
-max_features = 26 # ultimately truncated?  This was simply chosen to be long enough to cover the all the samples
+max_features = 26 #
 
-dataframe = pd.read_csv(csv_file) # header=None, names = list(range(0,max_features))) # names parameter tells it might be up to 70 columns https://stackoverflow.com/questions/18039057/python-pandas-error-tokenizing-data without that it errored when it encountered lines longer than the first.
+dataframe = pd.read_csv(csv_file) 
 dataframe_testing = pd.read_csv(csv_test_file) # header=None, names = list(range(0,max_features)))
-# when I tried dtype = np.int32, got ValueError: Integer column has NA values in column 19, let's see if it gives any trouble with the mixed dtypes
 dataframe = dataframe.fillna(value=0) #equiv to padding
 dataframe_testing = dataframe_testing.fillna(value=0)
 
-#print ("dataframe.info()",dataframe.info()) #none
+
 print ("dataframe.head() \n",dataframe.head()) #prints out the table
-#print (dataframe.dtypes)
-'''
-class myCallback(tf.keras.callbacks.Callback):
-  def on_epoch_end(self, epoch, logs={}):
-    if(logs.get('accuracy')>0.99):
-      print("\nReached 99% accuracy so cancelling training!")
-      self.model.stop_training = True
-'''
+
 # A utility method to create a tf.data dataset from a Pandas Dataframe, from https://colab.research.google.com/drive/1ElCfhpOmmyKiG4jzdhadoi5YEjYq0YP8?usp=sharing
 def df_to_dataset(dataframe, shuffle=True, batch_size=32):
   dataframe = dataframe.copy()
@@ -83,25 +70,10 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
 
 (train_ds) = df_to_dataset(dataframe, batch_size = 512) 
 print(type(train_ds))
-#print("train_ds.take(1) \n",train_ds.take(1)) #<TakeDataset shapes: ((None, 69), (None,)), types: (tf.float64, tf.float64)>
-#print("train_ds: \n", train_ds) #<PrefetchDataset shapes: ((None, 69), (None,)), types: (tf.float64, tf.float64)>
 (test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
-#(x_train, y_train) = train_ds.take(-1)#[(x_train, y_train)] = train_ds.take(1) # does take(1) mean row 1?
-#(x_test, y_test) = test_ds.take(-1)#[(x_test, y_test)] = test_ds.take(1) # was take(1)
-#print("x_train: ", list(x_train.key())) #AttributeError: 'tensorflow.python.framework.ops.EagerTensor' object has no attribute 'keys'.  If I eliminate 'keys' it says its not callable
-#x_train:  (<tf.Tensor: shape=(5, 69), dtype=float64, numpy=array([[ 150.,  176...
-#print("this is a tf dataset?")
-#print("first 32 features: \n", x_train)
-#print("first 32 classifications: \n", y_train)
-#for x_train, y_train in train_ds:
-#  print(f'features:{x_train} target:{y_train}')
-#features:{1: <tf.Tensor: shape=(5,), dtype=int64, numpy=array([120, 122, 131, 132, 146])>,..., 99: <tf.Tensor: shape=(5,), dtype=float64, numpy=array([nan, nan, nan, nan, nan])>} target:[0 0 0 0 0]
-#NOTE: features is a dictionary, I guess, which is obviously intended, but need to parse somehow to get padding, etc working (presumably tf actually accepts this dict as an input since since df_to_dataset came from a TF tutorial)'''
-
-#callbacks = myCallback()
 
 model = tf.keras.models.Sequential([
-  #tf.keras.layers.Flatten(), #complains with (1,69) but runs, errors on line 88 with (None,69), input_shape=(1, 69)delete it all together and it runs silently.
+  #tf.keras.layers.Flatten()
   tf.keras.layers.Dense(512, activation=tf.nn.relu),
   tf.keras.layers.Dense(10, activation=tf.nn.softmax)
 ])

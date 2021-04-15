@@ -98,7 +98,7 @@ def keyPressed(app, event):
 
 def getMidPoints(app): #finds the midpoints, taking horizontal slices
     pixels = list(app.img.getdata()) # returns one long flattened list: row1, row2, etc
-    (width, height) = app.img.size #28,28 TODO: is this a global?
+    (width, height) = app.img.size #28,28 
     leadEdge = 0
     vertThreshold = 5 # length of vertical segment to break up with multi points
     midsImageList = list() #a list that collects the midpoint pixels into a format PIL can create a PNG, etc

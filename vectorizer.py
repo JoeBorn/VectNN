@@ -7,8 +7,16 @@ import PIL, copy
 from PIL import Image 
 import decimal
 
+from tkinter import Tk     # from tkinter import Tk for Python 3.x
+from tkinter.filedialog import askopenfilename
+#https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
+Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+file = askopenfilename() # show an "Open" dialog box and return the path to the selected file
+print(file)
+
+
 #TODO: grid screws up when canvas stretched
-file = 'C:/GitHub/VectNN/JB_4.bmp'
+#file = 'C:/GitHub/VectNN/JB_4.bmp'
 #file = 'C:/mnist/mnist_all_files/training/7/10394.png'  
 img = Image.open(file)
 #img.show()
@@ -102,7 +110,7 @@ def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
 #gets index out of a flattened list given x and y coords of the image
 #list stores pixels by rows, starting with top
 def getIndex(x,y, width=28):
-    i = (y-1)*width + (x-1)
+    i = (y)*width + (x)#TODO y-1, x-1 fixed an out of index error in the parser, but seriously screws things up
     return i
 
 def getEndsBends(app):
@@ -174,7 +182,7 @@ def getTrace(app):
         else: #failing that, make sure all ends/bends are connected
             (startCol,startRow)= getEndsBends(app)
             if (startCol,startRow) == (None,None): break #if ends/bends gone,we're done
-            #TODO: sometimes, leaves ends unconnected, see notes on 4/336.png
+            #TODO: sometimes leaves ends unconnected, see notes on 4/336.png
             else:
                 app.trace.append("gap") 
                 app.trace.append((startCol, startRow))
@@ -194,7 +202,6 @@ def getTrace(app):
 
 #takes original "image" list and two midpoints(tuple with two ints(row and column coords)) 
 # and returns if they are contiguous
-#presumes that columns aren't more than one apart
 def areContiguous(app,image,mid1,mid2): 
     app.pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
@@ -208,9 +215,7 @@ def areContiguous(app,image,mid1,mid2):
             xStart = (row-b)/m
             xEnd = (row +1-b)/m
             xMin = max(smallestX,int(min(xStart,xEnd)))
-            xMax = min(largestX,roundHalfUp(max(xStart,xEnd)))# frankly I'm not sure why
-            # int works here, I would have thought math.ceil, but it works 
-            # and has to do with simple counting
+            xMax = min(largestX,roundHalfUp(max(xStart,xEnd)))
             xMid = (xMin + xMax)//2
             #requiring the char pixel in xMid is the more restrictive case, but 
             #seems to work ok.
@@ -221,7 +226,6 @@ def areContiguous(app,image,mid1,mid2):
     return True
 
 def isConnected(app,mid1,mid2): 
-    #app.pixels = list(image.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     if abs(x1-x2)==1 and abs(y1-y2)==1: #by definition so to speak
