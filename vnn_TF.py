@@ -32,12 +32,10 @@ Original file is located at
 #my assesment is that a csv file is fine, with classification in column 0 and a series of numbers after that representing all the coordinates, with the alpha stripped out
 """
 
-import numpy as np
 import pandas as pd
 import tensorflow as tf
 import pathlib
 
-from numpy import int32
 from tensorflow import keras #different syntax, taken from https://colab.research.google.com/drive/1554Yoj9uIRyeeYLX6fPJqC9ZBgnXiSjX?usp=sharing
 from sklearn.model_selection import train_test_split
 from tensorflow.keras import layers
@@ -60,7 +58,7 @@ print ("dataframe.head() \n",dataframe.head()) #prints out the table
 def df_to_dataset(dataframe, shuffle=True, batch_size=32):
   dataframe = dataframe.copy()
   labels = dataframe.pop('0') # 0 is the column holding the classifier- 
-  print("labels: ", labels)
+  #print("labels: ", labels)
   dataframe = abs(dataframe) / 28.0 #normalize the features
   ds = tf.data.Dataset.from_tensor_slices((dataframe,labels)) # was (dict(dataframe)),labels
   if shuffle:
@@ -70,29 +68,28 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
   return ds
 
 (train_ds) = df_to_dataset(dataframe, batch_size = 512) 
-print(type(train_ds))
 (test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
 (sample_ds) = df_to_dataset(dataframe_samples) #, batch_size = 10)
 
 model = tf.keras.models.Sequential([
   #tf.keras.layers.Flatten(input_shape=(1,25)),
   tf.keras.layers.Dense(512, activation=tf.nn.relu),
-  tf.keras.layers.Dense(10, activation=tf.nn.softmax)
+  tf.keras.layers.Dense(10, activation=tf.nn.softmax) # removing activation = accuracy drops to .17
 ])
 
-model.compile(optimizer='adam',
-              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-              metrics=['accuracy'])
-'''
+
 model.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
-'''
 
 model.fit(train_ds, epochs=30, validation_data=test_ds)
 #model.evaluate(x_test, y_test)
 
 #show samples
+
+test_loss, test_acc = model.evaluate(sample_ds, verbose=2)
+
+print('\nTest accuracy:', test_acc)
 
 probability_model = tf.keras.Sequential([model, 
                                          tf.keras.layers.Softmax()])
