@@ -34,10 +34,8 @@ Original file is located at
 
 import pandas as pd
 import tensorflow as tf
-import pathlib
 
 from tensorflow import keras #different syntax, taken from https://colab.research.google.com/drive/1554Yoj9uIRyeeYLX6fPJqC9ZBgnXiSjX?usp=sharing
-from sklearn.model_selection import train_test_split
 from tensorflow.keras import layers
 
 csv_file = 'C:/GitHub/VectNN/mnist_1_training.csv'
@@ -67,10 +65,20 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
   ds = ds.prefetch(batch_size)
   return ds
 
+def df_to_dataset2(dataframe, shuffle=False, batch_size=10):
+  dataframe = dataframe.copy()
+  labels = dataframe.pop('0') # 0 is the column holding the classifier- 
+  dataframe = abs(dataframe) / 28.0 #normalize the features
+  ds = tf.data.Dataset.from_tensor_slices((dataframe,labels)) # was (dict(dataframe)),labels
+  if shuffle:
+    ds = ds.shuffle(buffer_size=len(dataframe))
+  ds = ds.batch(batch_size)
+  ds = ds.prefetch(batch_size)
+  return ds
+
 (train_ds) = df_to_dataset(dataframe, batch_size = 512) 
 (test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
-(sample_ds) = df_to_dataset(dataframe_samples) #, batch_size = 10)
-
+(sample_ds) = df_to_dataset(dataframe_samples, batch_size = 10)
 model = tf.keras.models.Sequential([
   #tf.keras.layers.Flatten(input_shape=(1,25)),
   tf.keras.layers.Dense(512, activation=tf.nn.relu),
@@ -82,18 +90,14 @@ model.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
 
-model.fit(train_ds, epochs=30, validation_data=test_ds)
-#model.evaluate(x_test, y_test)
-
-#show samples
+model.fit(train_ds, epochs=20, validation_data=test_ds)
 
 test_loss, test_acc = model.evaluate(sample_ds, verbose=2)
 
-print('\nTest accuracy:', test_acc)
+print("\nTest accuracy: %5.2f" % (test_acc*100),"%\n")
 
-probability_model = tf.keras.Sequential([model, 
-                                         tf.keras.layers.Softmax()])
-
-predictions = probability_model.predict(sample_ds)
-
-print(predictions[0])
+print("Raw SoftMax Output:")
+predictions = model.predict(sample_ds)
+for i in range(10):
+  print("No.",i,predictions[i])
+  print()
