@@ -42,16 +42,17 @@ from tensorflow import keras #different syntax, taken from https://colab.researc
 from sklearn.model_selection import train_test_split
 from tensorflow.keras import layers
 
-csv_file = 'C:/GitHub/VectNN/mnist_1_training_mostall_mod.csv'
-csv_test_file = 'C:/GitHub/VectNN/mnist_1_testing_mod.csv'
-
-max_features = 26 #
+csv_file = 'C:/GitHub/VectNN/mnist_1_training.csv'
+csv_test_file = 'C:/GitHub/VectNN/mnist_1_testing.csv'
+csv_samples = 'C:/GitHub/VectNN/mnist_1_samples.csv'
+max_features = 25 #
 
 dataframe = pd.read_csv(csv_file) 
 dataframe_testing = pd.read_csv(csv_test_file) # header=None, names = list(range(0,max_features)))
+dataframe_samples = pd.read_csv(csv_samples)
 dataframe = dataframe.fillna(value=0) #equiv to padding
 dataframe_testing = dataframe_testing.fillna(value=0)
-
+dataframe_samples = dataframe_samples.fillna(value=0)
 
 print ("dataframe.head() \n",dataframe.head()) #prints out the table
 
@@ -71,16 +72,31 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
 (train_ds) = df_to_dataset(dataframe, batch_size = 512) 
 print(type(train_ds))
 (test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
+(sample_ds) = df_to_dataset(dataframe_samples) #, batch_size = 10)
 
 model = tf.keras.models.Sequential([
-  #tf.keras.layers.Flatten()
+  #tf.keras.layers.Flatten(input_shape=(1,25)),
   tf.keras.layers.Dense(512, activation=tf.nn.relu),
   tf.keras.layers.Dense(10, activation=tf.nn.softmax)
 ])
+
+model.compile(optimizer='adam',
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=['accuracy'])
+'''
 model.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
+'''
 
 model.fit(train_ds, epochs=30, validation_data=test_ds)
 #model.evaluate(x_test, y_test)
 
+#show samples
+
+probability_model = tf.keras.Sequential([model, 
+                                         tf.keras.layers.Softmax()])
+
+predictions = probability_model.predict(sample_ds)
+
+print(predictions[0])
