@@ -42,7 +42,7 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
   dataframe = dataframe.copy()
   labels = dataframe.pop('0') # 0 is the column holding the classifier- 
   dataframe = abs(dataframe) / 28.0 #normalize the features
-  ds = tf.data.Dataset.from_tensor_slices((dataframe,labels)) # was (dict(dataframe)),labels
+  ds = tf.data.Dataset.from_tensor_slices((dataframe,labels)) 
   if shuffle:
     ds = ds.shuffle(buffer_size=len(dataframe))
   ds = ds.batch(batch_size)
@@ -56,6 +56,7 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
 (train_ds) = df_to_dataset(dataframe, batch_size = 512) 
 (test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
 (sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 10)
+
 model = tf.keras.models.Sequential([
   tf.keras.layers.Dense(512, activation=tf.nn.relu),
   tf.keras.layers.Dense(10, activation=tf.nn.softmax) 

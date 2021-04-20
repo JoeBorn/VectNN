@@ -7,17 +7,10 @@ import PIL, copy
 from PIL import Image 
 import decimal
 
-from tkinter import Tk     # from tkinter import Tk for Python 3.x
-from tkinter.filedialog import askopenfilename
-#https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
-Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-file = askopenfilename() # show an "Open" dialog box and return the path to the selected file
-print(file)
-
 
 #TODO: grid screws up when canvas stretched
 #file = 'C:/GitHub/VectNN/JB_4.bmp'
-#file = 'C:/mnist/mnist_all_files/training/7/10394.png'  
+file = 'C:/mnist/mnist_all_files/training/7/10394.png'  
 img = Image.open(file)
 #img.show()
 def appStarted(app):
@@ -30,7 +23,7 @@ def appStarted(app):
     app.margin = 100
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
     variables(app)
-    findEnds(app) #TODO this sure shouldn't be here, but where?
+    findEnds(app) #TODO 
     getMidPoints(app, img)
     getTrace(app)
 
