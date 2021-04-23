@@ -7,19 +7,17 @@ import PIL, copy
 from PIL import Image 
 import decimal
 
-#from tkinter import Tk     # from tkinter import Tk for Python 3.x
-#from tkinter.filedialog import askopenfilename
 
 def openFile(app):
     #https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
     Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-    file = filedialog.askopenfilename() # show an "Open" dialog box and return the path to the selected file
+    app.file = filedialog.askopenfilename() # show an "Open" dialog box and return the path to the selected file
+    app.img = Image.open(app.file)
+    
 
 #TODO: grid screws up when canvas stretched
 #file = 'C:/GitHub/VectNN/JB_4.bmp'
-file = 'C:/mnist/mnist_all_files/training/4/9.png'  
-img = Image.open(file)
-#img.show()
+
 def appStarted(app):
     app.contigLinesVisible = True
     app.oneContigVis = False
@@ -29,9 +27,11 @@ def appStarted(app):
     app.selRow = 0
     app.margin = 100
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
+    app.file = 'C:/mnist/mnist_all_files/training/4/9.png'  
+    app.img = Image.open(app.file)
     variables(app)
     findEnds(app) #TODO 
-    getMidPoints(app, img)
+    getMidPoints(app)
     getTrace(app)
 
 
@@ -58,7 +58,7 @@ def mousePressed(app, event):
     bH = 25 #button half height
     if pointInGrid(app,event.x,event.y):
         app.selCol, app.selRow = getGridCoords(app,event.x,event.y)
-    if app.width*.2-80 <event.x <app.width*.2+80 and app.height*.85-bH <event.y <app.height*.85 + bH:
+    if app.width*.2-bW <event.x <app.width*.2+bW and app.height*.85-bH <event.y <app.height*.85 + bH:
         openFile(app)
 '''
 
@@ -90,13 +90,12 @@ def drawSelection(app, canvas):
 def keyPressed(app, event):
     if event.key.lower() == 'space':
         app.contigLinesVisible = not app.contigLinesVisible
-def keyPressed(app, event):
     if event.key.lower() == 'o':
         app.oneContigVis = not app.oneContigVis        
 
-def getMidPoints(app, image): #finds the midpoints, taking horizontal slices
-    pixels = list(image.getdata()) # returns one long flattened list: row1, row2, etc
-    (width, height) = img.size #28,28 TODO: is this a global?
+def getMidPoints(app): #finds the midpoints, taking horizontal slices
+    pixels = list(app.img.getdata()) # returns one long flattened list: row1, row2, etc
+    (width, height) = app.img.size #28,28
     leadEdge = 0
     vertThreshold = 5 # length of vertical segment to break up with multi points
     midsList = list() # a list of the coordinate tuples of the midpoints
@@ -156,13 +155,13 @@ def getTrace(app):
     (startCol, startRow) = getEndsBends(app)
     app.trace.append((startCol, startRow))
     #connect to farthest contiguous point
-    midsList, outlineList = getMidPoints(app,img)# TODO eliminate all the calls to gMP, put midslist etc in app...
+    midsList, outlineList = getMidPoints(app)# TODO eliminate all the calls to gMP, put midslist etc in app...
     while len(midsList) > 1:
         traceIndex = app.trace.index((startCol,startRow))
         #print ("ML prior: ", midsList)
         maxDistance = 0
         for index in range(len(midsList)):
-            if areContiguous(app,img,(startCol, startRow),midsList[index]):
+            if areContiguous(app,(startCol, startRow),midsList[index]):
                 (x,y) = midsList[index] #TODO: pick one, it's either row, col or x,y
                 if traceIndex == 0 or app.trace[traceIndex-1] == 'gap':
                     dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
@@ -177,8 +176,8 @@ def getTrace(app):
         if (startCol,startRow) in midsList: midsList.remove((startCol,startRow))
         index = 0
         while index < (len(midsList)): #removes intermediate points from ML
-            if areContiguous(app,img,(startCol, startRow),midsList[index]) and \
-                areContiguous(app,img, (endX,endY), midsList[index]):
+            if areContiguous(app,(startCol, startRow),midsList[index]) and \
+                areContiguous(app, (endX,endY), midsList[index]):
                 (x,y) = midsList[index]
                 if traceIndex == 0 or app.trace[traceIndex -1] == "gap":
                     dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
@@ -205,7 +204,7 @@ def getTrace(app):
         #print("app.trace", app.trace)
         #print("ML after: ",midsList)
         #input("press any key")
-    if areContiguous(app,img,app.trace[0],app.trace[-1]):
+    if areContiguous(app,app.trace[0],app.trace[-1]):
         app.trace.append(app.trace[0]) #closing the loop on closed chars
     #print (app.trace) 
 
@@ -217,8 +216,8 @@ def getTrace(app):
 
 #takes original "image" list and two midpoints(tuple with two ints(row and column coords)) 
 # and returns if they are contiguous
-def areContiguous(app,image,mid1,mid2): 
-    app.pixels = list(image.getdata()) 
+def areContiguous(app,mid1,mid2): 
+    app.pixels = list(app.img.getdata()) 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     largestX = max(x1,x2)
@@ -271,7 +270,7 @@ def isConnected(app,mid1,mid2):
         else:
             return False    
 
-def contiguousPairs(app,midsList, img):
+def contiguousPairs(app,midsList):
     contMidStart = list()
     contMidEnd = list()
     maxConnections = 100 #TODO: think about this.effectively eliminated for now 
@@ -281,14 +280,14 @@ def contiguousPairs(app,midsList, img):
         connections = 0
         for coord2 in range(len(midsList)):
             if connections <= maxConnections and coord1 != coord2 and \
-                areContiguous(app,img,midsList[coord1], midsList[coord2]):
+                areContiguous(app,midsList[coord1], midsList[coord2]):
                 contMidStart.append(midsList[coord1])
                 contMidEnd.append(midsList[coord2])
                 connections += 1
     return (contMidStart, contMidEnd)
 '''
 print("\n contiguousPairs: +++++++++++++++++")
-(contMidStart, contMidEnd) = contiguousPairs(midsList, img)
+(contMidStart, contMidEnd) = contiguousPairs(midsList, app.img)
 for i in range(len(contMidStart)):
     print(contMidStart[i], contMidEnd[i])
 '''
@@ -297,8 +296,8 @@ def findEnds(app):
     ''' go through all the midpoints & apply two part test: 1 end has all 
     connected points in "one direction", ie up down, left, right etc &
     2. those connected points must be connected to one another '''
-    midsList, outlineList = getMidPoints(app,img)
-    (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img) #copied from drawContiguousConnections
+    midsList, outlineList = getMidPoints(app)
+    (contMidStart, contMidEnd) = contiguousPairs(app,midsList) #copied from drawContiguousConnections
     app.ends = []
     app.bends = []
     i = 1 #TODO missing the last midpoint? first, it's missing something
@@ -324,7 +323,7 @@ def findEnds(app):
                 allRorL = False #they aren't all to one side
             if (y2-y1)*(y3-y1) <= 0:
                 allUorD = False #they aren't all above (or below)
-            if not areContiguous(app,img,(x2,y2),(x3,y3)):
+            if not areContiguous(app,(x2,y2),(x3,y3)):
                 allConnected = False #the connections aren't connected to each other
                 # ie it's not an end, just a side of a curve, a "bend"
             i += 1
@@ -344,7 +343,7 @@ def drawButtons(app, canvas):
 
 def drawMidPoints(app, canvas):
     canvas.create_rectangle(100,100, 380,380)
-    midsList, outlineList = getMidPoints(app,img)
+    midsList, outlineList = getMidPoints(app)
     for coords in midsList:
         ((x,y))=coords
         x=105+x*20
@@ -365,8 +364,8 @@ def drawGrid(app, canvas):
     canvas.create_text(100,700, text =f'sel Coord(row,col) : {app.selRow} , {app.selCol}')
 
 def drawOutline(app, canvas):
-    canvas.create_text(100,50, text=f'Threshold: {app.threshold}    {file}', font='Courier 11 bold', anchor = 'w')
-    midsList, outlineList = getMidPoints(app,img)
+    canvas.create_text(100,50, text=f'Threshold: {app.threshold}    {app.file}', font='Courier 11 bold', anchor = 'w')
+    midsList, outlineList = getMidPoints(app)
     for coords in outlineList:
         ((x,y))=coords
         x=100+x*20
@@ -374,9 +373,9 @@ def drawOutline(app, canvas):
         canvas.create_rectangle(x,y,x+20,y+20, fill ="lightgray")
 
 def drawContiguousConnections(app, canvas):
-    midsList, outlineList = getMidPoints(app,img)
+    midsList, outlineList = getMidPoints(app)
     if app.contigLinesVisible == True: #TODO: something wrong here 
-        (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img)
+        (contMidStart, contMidEnd) = contiguousPairs(app,midsList)
         for i in range(len(contMidStart)):
             (x1,y1) = contMidStart[i]
             (x1,y1) = app.offset + x1*20, app.offset + y1*20 
@@ -417,23 +416,17 @@ def drawTrace(app, canvas):
 
 def timerFired(app):
     variables(app)
-    findEnds(app)
-
-def testAreContiguous():
-    print("Testing areContiguous()...", end="")
-    #assert(areContiguous(img,(9,17),(10,10)) == False)
-    assert(areContiguous(img,(8,21),(9,17)) == False)
-    print("Passed!")
+    findEnds(app) #TODO hard to imagine this should be here
 
 
 def drawCharacter(app, canvas):
     drawOutline(app, canvas)
     drawMidPoints(app, canvas)
-    drawEnds(app, canvas)
-    drawBends(app, canvas)
+    #drawEnds(app, canvas)
+    #drawBends(app, canvas)
     drawSelection(app, canvas)
     drawTrace(app, canvas)
-    drawContiguousConnections(app, canvas)
+    #drawContiguousConnections(app, canvas)
 
 
 def redrawAll(app, canvas):
