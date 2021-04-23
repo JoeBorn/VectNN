@@ -7,6 +7,13 @@ import PIL, copy
 from PIL import Image 
 import decimal
 
+#from tkinter import Tk     # from tkinter import Tk for Python 3.x
+#from tkinter.filedialog import askopenfilename
+
+def openFile(app):
+    #https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
+    Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+    file = filedialog.askopenfilename() # show an "Open" dialog box and return the path to the selected file
 
 #TODO: grid screws up when canvas stretched
 #file = 'C:/GitHub/VectNN/JB_4.bmp'
@@ -47,7 +54,22 @@ def pointInGrid(app,x,y):
         (app.margin <= y <=app.height -app.margin))
 
 def mousePressed(app, event):
-    app.selCol, app.selRow = getGridCoords(app,event.x,event.y)
+    bW = 80 #button half width
+    bH = 25 #button half height
+    if pointInGrid(app,event.x,event.y):
+        app.selCol, app.selRow = getGridCoords(app,event.x,event.y)
+    if app.width*.2-80 <event.x <app.width*.2+80 and app.height*.85-bH <event.y <app.height*.85 + bH:
+        openFile(app)
+'''
+
+    
+    canvas.create_rectangle(app.width//5-bW, app.height*.85-bH, app.width//5+bW, app.height*.85+bH )
+    canvas.create_text(app.width//5,app.height*.85, text = "open file")
+    canvas.create_rectangle(app.width//2-bW, app.height*.85-bH, app.width//2+bW, app.height*.85+bH )
+    canvas.create_text(app.width//2,app.height*.85, text = "create file")
+    canvas.create_rectangle(app.width*.8-bW, app.height*.85-bH, app.width*.8+bW, app.height*.85+bH )
+    canvas.create_text(app.width*.8,app.height*.85, text = "close app")
+'''
 
 def getGridCoords(app,x,y): #view to model
     if not pointInGrid(app,x,y):
@@ -270,6 +292,56 @@ print("\n contiguousPairs: +++++++++++++++++")
 for i in range(len(contMidStart)):
     print(contMidStart[i], contMidEnd[i])
 '''
+
+def findEnds(app):
+    ''' go through all the midpoints & apply two part test: 1 end has all 
+    connected points in "one direction", ie up down, left, right etc &
+    2. those connected points must be connected to one another '''
+    midsList, outlineList = getMidPoints(app,img)
+    (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img) #copied from drawContiguousConnections
+    app.ends = []
+    app.bends = []
+    i = 1 #TODO missing the last midpoint? first, it's missing something
+    allRorL = True # all contMidEnds are on one side of contMidStart
+    allUorD = True # all contMidEnds are above or all are below contMidStart
+    allConnected = True
+    while i < len(contMidStart):
+        if contMidStart[i] != contMidStart[i-1] or i == len(contMidStart)-1:
+            if (allRorL or allUorD):
+                if not allConnected:
+                    app.bends.append(contMidStart[i-1])
+                else: # if it has only one pair, it's an end
+                    app.ends.append(contMidStart[i-1]) 
+            i += 1
+            allRorL = True # reset checks
+            allUorD = True
+            allConnected = True 
+        else: #if it's an additional mid connection then perform the checks.
+            (x1,y1) = contMidStart[i] 
+            (x2,y2) = contMidEnd[i-1]
+            (x3,y3) = contMidEnd[i]
+            if (x2-x1)*(x3-x1) <= 0: 
+                allRorL = False #they aren't all to one side
+            if (y2-y1)*(y3-y1) <= 0:
+                allUorD = False #they aren't all above (or below)
+            if not areContiguous(app,img,(x2,y2),(x3,y3)):
+                allConnected = False #the connections aren't connected to each other
+                # ie it's not an end, just a side of a curve, a "bend"
+            i += 1
+        
+    #print ("app.ends: ", app.ends)
+
+
+def drawButtons(app, canvas):
+    bW = 80 #button half width
+    bH = 25 #button half height
+    canvas.create_rectangle(app.width//5-bW, app.height*.85-bH, app.width//5+bW, app.height*.85+bH )
+    canvas.create_text(app.width//5,app.height*.85, text = "open file")
+    canvas.create_rectangle(app.width//2-bW, app.height*.85-bH, app.width//2+bW, app.height*.85+bH )
+    canvas.create_text(app.width//2,app.height*.85, text = "create file")
+    canvas.create_rectangle(app.width*.8-bW, app.height*.85-bH, app.width*.8+bW, app.height*.85+bH )
+    canvas.create_text(app.width*.8,app.height*.85, text = "close app")
+
 def drawMidPoints(app, canvas):
     canvas.create_rectangle(100,100, 380,380)
     midsList, outlineList = getMidPoints(app,img)
@@ -281,7 +353,7 @@ def drawMidPoints(app, canvas):
 
 def drawGrid(app, canvas):
     rEdge = app.width - app.margin + 1
-    bEdge = app.height - app.margin + 1
+    bEdge = app.height - app.margin -200 + 1
     for x in range(app.margin,rEdge, app.pixWH):
         canvas.create_line(x,app.margin,x,bEdge)
     for y in range(app.margin,bEdge, app.pixWH):
@@ -332,43 +404,6 @@ def drawBends(app, canvas): # TODO fix this to match row, col convention
         r = 15
         canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "blue", fill = None)
 
-def findEnds(app):
-    ''' go through all the midpoints & apply two part test: 1 end has all 
-    connected points in "one direction", ie up down, left, right etc &
-    2. those connected points must be connected to one another '''
-    midsList, outlineList = getMidPoints(app,img)
-    (contMidStart, contMidEnd) = contiguousPairs(app,midsList, img) #copied from drawContiguousConnections
-    app.ends = []
-    app.bends = []
-    i = 1 #TODO missing the last midpoint? first, it's missing something
-    allRorL = True # all contMidEnds are on one side of contMidStart
-    allUorD = True # all contMidEnds are above or all are below contMidStart
-    allConnected = True
-    while i < len(contMidStart):
-        if contMidStart[i] != contMidStart[i-1] or i == len(contMidStart)-1:
-            if (allRorL or allUorD):
-                if not allConnected:
-                    app.bends.append(contMidStart[i-1])
-                else: # if it has only one pair, it's an end
-                    app.ends.append(contMidStart[i-1]) 
-            i += 1
-            allRorL = True # reset checks
-            allUorD = True
-            allConnected = True 
-        else: #if it's an additional mid connection then perform the checks.
-            (x1,y1) = contMidStart[i] 
-            (x2,y2) = contMidEnd[i-1]
-            (x3,y3) = contMidEnd[i]
-            if (x2-x1)*(x3-x1) <= 0: 
-                allRorL = False #they aren't all to one side
-            if (y2-y1)*(y3-y1) <= 0:
-                allUorD = False #they aren't all above (or below)
-            if not areContiguous(app,img,(x2,y2),(x3,y3)):
-                allConnected = False #the connections aren't connected to each other
-                # ie it's not an end, just a side of a curve, a "bend"
-            i += 1
-        
-    #print ("app.ends: ", app.ends)
 
 def drawTrace(app, canvas):
     for i in range(1,len(app.trace)):
@@ -391,8 +426,7 @@ def testAreContiguous():
     print("Passed!")
 
 
-def redrawAll(app, canvas):
-    drawGrid(app,canvas)
+def drawCharacter(app, canvas):
     drawOutline(app, canvas)
     drawMidPoints(app, canvas)
     drawEnds(app, canvas)
@@ -400,12 +434,17 @@ def redrawAll(app, canvas):
     drawSelection(app, canvas)
     drawTrace(app, canvas)
     drawContiguousConnections(app, canvas)
-    
+
+
+def redrawAll(app, canvas):
+    drawGrid(app,canvas)
+    drawButtons(app,canvas)
+    drawCharacter(app,canvas)
     
 
 def main():
     #cs112_s21_week4_linter.lint()
-    runApp(width=760, height=760)
+    runApp(width=760, height=960)
     
 
 if __name__ == '__main__':
