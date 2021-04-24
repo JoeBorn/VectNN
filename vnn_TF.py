@@ -22,19 +22,31 @@ import tensorflow as tf
 #************************************************
 # Importing and formatting the data -pandas
 #************************************************
+def trainNN():
+  csv_file = 'C:/GitHub/VectNN/mnist_1_training.csv'
+  csv_test_file = 'C:/GitHub/VectNN/mnist_1_testing.csv'
+  csv_samples = 'C:/GitHub/VectNN/mnist_1_samples.csv'
 
-csv_file = 'C:/GitHub/VectNN/mnist_1_training.csv'
-csv_test_file = 'C:/GitHub/VectNN/mnist_1_testing.csv'
-csv_samples = 'C:/GitHub/VectNN/mnist_1_samples.csv'
+  dataframe = pd.read_csv(csv_file) 
+  dataframe_testing = pd.read_csv(csv_test_file)
+  dataframe_samples = pd.read_csv(csv_samples) 
+  dataframe = dataframe.fillna(value=0) #equiv to padding
+  dataframe_testing = dataframe_testing.fillna(value=0)
+  dataframe_samples = dataframe_samples.fillna(value=0)
 
-dataframe = pd.read_csv(csv_file) 
-dataframe_testing = pd.read_csv(csv_test_file)
-dataframe_samples = pd.read_csv(csv_samples) 
-dataframe = dataframe.fillna(value=0) #equiv to padding
-dataframe_testing = dataframe_testing.fillna(value=0)
-dataframe_samples = dataframe_samples.fillna(value=0)
+  #print ("dataframe.head() \n",dataframe.head()) #prints out the table
 
-print ("dataframe.head() \n",dataframe.head()) #prints out the table
+  (train_ds) = df_to_dataset(dataframe, batch_size = 512) 
+  (test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
+  model = tf.keras.models.Sequential([
+  tf.keras.layers.Dense(512, activation=tf.nn.relu),
+  tf.keras.layers.Dense(10, activation=tf.nn.softmax)])
+
+  model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+  model.fit(train_ds, epochs=20, validation_data=test_ds)
 
 # A utility method to create a tf.data dataset from a Pandas Dataframe, 
 # from https://colab.research.google.com/drive/1ElCfhpOmmyKiG4jzdhadoi5YEjYq0YP8?usp=sharing
@@ -53,25 +65,54 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
 # Inputting, setting up, running the Neural Net
 #************************************************
 
-(train_ds) = df_to_dataset(dataframe, batch_size = 512) 
-(test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
-(sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 10)
 
-model = tf.keras.models.Sequential([
-  tf.keras.layers.Dense(512, activation=tf.nn.relu),
-  tf.keras.layers.Dense(10, activation=tf.nn.softmax) 
-])
 
-model.compile(optimizer='adam',
-              loss='sparse_categorical_crossentropy',
-              metrics=['accuracy'])
+#(sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 10)
 
-model.fit(train_ds, epochs=20, validation_data=test_ds)
+
+
+
 
 #************************************************
-# Evaluating the Results
+# Evaluating a new sample
 #************************************************
 
+def openFile(app):
+    with open('temp', newline='',mode='w') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+                traceWriter.writerow([i for i in range(25)]) #headers
+    for i in range(10):
+        #path = f'C:/mnist/mnist_all_files/testing/{i}/'
+        path = f'C:/mnist/mnist_all_files/training/{i}/'
+        for filename in glob.glob(os.path.join(path, '*.png')):
+            with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
+                app.img = Image.open(filename)
+                #print(filename)
+                try:
+                    getMidPoints(app, app.img)
+                    findEnds(app)
+                    getTrace(app)
+                except: 
+                    print(filename)
+                
+            with open('mnist_1_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+                traceWriter.writerow(traceConverter(i,app))
+    print(f"done! no {i}")
+
+
+
+def traceConverter(i,app):
+    result = [i]
+    for item in app.trace:
+        if item != "gap":
+            (x,y) = item
+            result.append(x)
+            result.append(y)
+    return result
+
+
+'''
 test_loss, test_acc = model.evaluate(sample_ds, verbose=2)
 
 print("\nTest accuracy: %5.2f" % (test_acc*100),"%\n")
@@ -81,3 +122,4 @@ predictions = model.predict(sample_ds)
 for i in range(10):
   print("No.",i,predictions[i])
   print()
+'''
