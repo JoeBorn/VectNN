@@ -23,8 +23,6 @@ def openFile(app):
 #file = 'C:/GitHub/VectNN/JB_4.bmp'
 
 def appStarted(app):
-    app.contigLinesVisible = True
-    app.oneContigVis = False
     app.rows = 28 # a row and col for each pixel 
     app.cols = 28 # a row and col for each pixel 
     app.selCol = 0
@@ -35,6 +33,13 @@ def appStarted(app):
     app.file = 'C:/mnist/mnist_all_files/training/4/9.png'  
     app.img = Image.open(app.file)
     app.pixels = list(app.img.getdata())
+    app.drawingMode = None
+    app.midPointsOn = True
+    app.endsBendsOn = True
+    app.traceOn = True
+    app.contPath = "one"
+    app.markerActive = False
+    app.eraserActive = False
     variables(app)
     findEnds(app) #TODO 
     getMidPoints(app)
@@ -43,9 +48,11 @@ def appStarted(app):
 
 def variables(app):
     app.pixW = (app.width - 2*app.margin)//app.cols
-    app.pixH = (app.height - 2*app.margin -app.botMargin)//app.rows
+    app.pixH = (app.height - app.margin -app.botMargin)//app.rows
     app.threshold = 120 # lightness threshold to determine edges of chars
     #0 is black, 255 is white, on pngs, letters are light on black background
+    
+    app.drawnCenters = [] # list of mouse event tuples when drawing a char
 
 def roundHalfUp(d):
     # Round to nearest with ties going away from zero.
@@ -57,7 +64,7 @@ def roundHalfUp(d):
 #grid details derived from: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
 def pointInGrid(app,x,y):
     return ((app.margin <= x <= app.width - app.margin) and \
-        (app.margin <= y <=app.height -app.margin))
+        (app.margin <= y <=app.height -app.botMargin))
 
 def sizeChanged(app):
     variables(app)
@@ -67,18 +74,64 @@ def mousePressed(app, event):
     bH = 25 #button half height
     if pointInGrid(app,event.x,event.y):
         app.selCol, app.selRow = getGridCoords(app,event.x,event.y)
-    if app.width*.2-bW <event.x <app.width*.2+bW and app.height*.85-bH <event.y <app.height*.85 + bH:
+    elif .55*app.width<event.x<.76*app.width and .73*app.height<event.y<.78*app.height:
+        drawingButtonPressed(app, event.x,event.y)
+    elif .15*app.width<event.x<.25*app.width and .75*app.height<event.y<.88*app.height:
+        fileButtonPressed(app,event.x,event.y)
+    elif .37*app.width<event.x<.9*app.width and .88*app.height<event.y<.96*app.height:
+        visualizationButtonPressed(app,event.x,event.y)
+
+
+def drawingButtonPressed(app,x,y):
+    if .55*app.width<x<.60*app.width and .73*app.height<y<.78*app.height:
+        appStarted(app)
+    if .63*app.width<x<.67*app.width and .73*app.height<y<.78*app.height:
+        app.eraserActive = not app.erasterActive
+        app.markerActive = False
+        print("eraserActive") 
+    if .71*app.width<x<.75*app.width and .73*app.height<y<.78*app.height:
+        app.markerActive = not app.markerActive
+        app.eraserActive = False
+        print("markerActive")
+
+def fileButtonPressed(app,x,y):
+    if .15*app.width<x<.25*app.width and .76*app.height<y<.80*app.height:
+        print("file save dialog")
+        #saveFile(app)
+    if .15*app.width<x<.25*app.width and .83*app.height<y<.87*app.height:
         openFile(app)
-'''
+
+def visualizationButtonPressed(app,x,y):
+    r = 11
+    if (.39*app.width-x)**2 +(.89*app.height-y)**2 < r**2:
+        app.midPointsOn = True
+    elif (.39*app.width-x)**2 +(.92*app.height-y)**2 < r**2:
+        app.midPointsOn = False
+    elif (.56*app.width-x)**2 +(.89*app.height-y)**2 < r**2:
+        app.endsBendsOn = True
+    elif (.56*app.width-x)**2 +(.92*app.height-y)**2 < r**2:
+        app.endsBendsOn = False
+    elif (.72*app.width-x)**2 +(.89*app.height-y)**2 < r**2:
+        app.traceOn = True
+    elif (.72*app.width-x)**2 +(.92*app.height-y)**2 < r**2:
+        app.traceOn = False
+    elif (.89*app.width-x)**2 +(.89*app.height-y)**2 < r**2:
+        app.contPath = "all"
+    elif (.89*app.width-x)**2 +(.92*app.height-y)**2 < r**2:
+        app.contPath = "one"
+    elif (.89*app.width-x)**2 +(.95*app.height-y)**2 < r**2:
+        app.contPath = "off"    
+
+
+
+def mouseDragged(app, event):
+    if app.drawingMode == False:
+        return
+    x,y = getGridCoords(app,event.x,event.y)
+    index = getIndex(x,y)
+    app.pixels[index]= 250 # sets pixel to an arbitrary "light" value
 
     
-    canvas.create_rectangle(app.width//5-bW, app.height*.85-bH, app.width//5+bW, app.height*.85+bH )
-    canvas.create_text(app.width//5,app.height*.85, text = "open file")
-    canvas.create_rectangle(app.width//2-bW, app.height*.85-bH, app.width//2+bW, app.height*.85+bH )
-    canvas.create_text(app.width//2,app.height*.85, text = "create file")
-    canvas.create_rectangle(app.width*.8-bW, app.height*.85-bH, app.width*.8+bW, app.height*.85+bH )
-    canvas.create_text(app.width*.8,app.height*.85, text = "close app")
-'''
 
 def getGridCoords(app,x,y): #view to model
     if not pointInGrid(app,x,y):
@@ -103,17 +156,17 @@ def keyPressed(app, event):
         app.oneContigVis = not app.oneContigVis        
 
 def getMidPoints(app): #finds the midpoints, taking horizontal slices
-    pixels = list(app.img.getdata()) # returns one long flattened list: row1, row2, etc
-    (width, height) = app.img.size #28,28
+    #pixels = list(app.img.getdata()) # returns one long flattened list: row1, row2, etc
+    (width, height) = app.img.size #28,28 #TODO: we may be in drawing mode
     leadEdge = 0
     vertThreshold = 5 # length of vertical segment to break up with multi points
     midsList = list() # a list of the coordinate tuples of the midpoints
     outlineList = list() # list of leading and trailing edges, should form an outline
     for x in range(width):
         for y in range(height):
-            if pixels[getIndex(x,y)] > app.threshold and leadEdge == 0: 
+            if app.pixels[getIndex(x,y)] > app.threshold and leadEdge == 0: 
                 leadEdge = y # leading edge found
-            if pixels[getIndex(x,y)] <= app.threshold and leadEdge != 0: #trailing edge found
+            if app.pixels[getIndex(x,y)] <= app.threshold and leadEdge != 0: #trailing edge found
                 #TODO remove single pixel "turds"
                 trailEdge = y-1 #TODO: Check, but I think because <= app.threshold
                 if abs(leadEdge-trailEdge) > vertThreshold:
@@ -136,11 +189,11 @@ def getIndex(x,y, width=28):
     i = (y)*width + (x)#TODO y-1, x-1 fixed an out of index error in the parser, but seriously screws things up
     return i
 
-def getEndsBends(app):
+def getStartPoint(app): #returns starting point to trace
     minDist = 10**10
     if app.ends != []:
         for (col,row) in app.ends:
-            print("tempAppEnds: ", app.ends)
+            #print("tempAppEnds: ", app.ends)
             dist = math.sqrt(row**2 + col**2)
             if dist < minDist:
                 minDist = dist
@@ -154,14 +207,14 @@ def getEndsBends(app):
             if dist < minDist:
                 minDist = dist
                 (startCol, startRow) = (col,row)
-        app.bends.remove((startCol,startRow))# mistake- this removes each end in order (or should anyway)
+        app.bends.remove((startCol,startRow))#TODO mistake- this removes each end in order (or should anyway)
         return (startCol, startRow)
     else: return (None, None)
 
 def getTrace(app):
     app.trace = []
     #start with the end closest to 0,0
-    (startCol, startRow) = getEndsBends(app)
+    (startCol, startRow) = getStartPoint(app)
     app.trace.append((startCol, startRow))
     #connect to farthest contiguous point
     midsList, outlineList = getMidPoints(app)# TODO eliminate all the calls to gMP, put midslist etc in app...
@@ -203,7 +256,7 @@ def getTrace(app):
         if (startCol,startRow) != (endX,endY): # it found a new connection point
             (startCol,startRow) = (endX,endY)
         else: #failing that, make sure all ends/bends are connected
-            (startCol,startRow)= getEndsBends(app)
+            (startCol,startRow)= getStartPoint(app)
             if (startCol,startRow) == (None,None): break #if ends/bends gone,we're done
             #TODO: sometimes leaves ends unconnected, see notes on 4/336.png
             else:
@@ -300,12 +353,12 @@ for i in range(len(contMidStart)):
     print(contMidStart[i], contMidEnd[i])
 '''
 
+#Apply two part test to all midpoints: 1 end has all 
+#connected points in "one direction", ie up down, left, right etc &
+#2. those connected points must be connected to one another
 def findEnds(app):
-    ''' go through all the midpoints & apply two part test: 1 end has all 
-    connected points in "one direction", ie up down, left, right etc &
-    2. those connected points must be connected to one another '''
     midsList, outlineList = getMidPoints(app)
-    (contMidStart, contMidEnd) = contiguousPairs(app,midsList) #copied from drawContiguousConnections
+    (contMidStart, contMidEnd) = contiguousPairs(app,midsList)
     app.ends = []
     app.bends = []
     i = 1 #TODO missing the last midpoint? first, it's missing something
@@ -340,32 +393,94 @@ def findEnds(app):
 
 
 def drawButtons(app, canvas):
-    bW = 80 #button half width
+    bW = 40 #button half width
     bH = 25 #button half height
-    canvas.create_rectangle(app.width//2+100-bW//2, app.height*.75-bH, app.width//2+100+bW//2, app.height*.75+bH )
-    canvas.create_text(app.width//2+100,app.height*.75, text = "Clear")
-    canvas.create_rectangle(app.width*.8-bW//2, app.height*.75-bH, app.width*.8+bW//2, app.height*.75+bH )
-    canvas.create_rectangle(app.width*.8-10, app.height*.75, app.width*.8+10, app.height*.75+20, fill = "gray" )
-    canvas.create_polygon(app.width*.8-10, app.height*.748, app.width*.8+10, app.height*.748, app.width*.8,app.height*.75-18, fill = "gray", width = 1 )
-    canvas.create_rectangle(app.width//5-bW, app.height*.85-bH, app.width//5+bW, app.height*.85+bH )
+    dCX,dCY = app.width//2 + 115, app.height*.705 # drawing tools console center
+    canvas.create_text(dCX,dCY, text = "Drawing Tools")
+    #clear drawing button
+    canvas.create_rectangle(dCX -2*bW, dCY +bH, dCX -bW, dCY+ 3*bH)
+    canvas.create_text(dCX-3*bW//2,dCY +2*bH, text = "Clear")
+    #eraser button
+    canvas.create_rectangle(dCX -bW//2, dCY +bH, dCX +bW//2, dCY+ 3*bH)
+    canvas.create_rectangle(dCX-10, dCY+bH+20, dCX+10, dCY+bH+42, fill = "black" )
+    canvas.create_rectangle(dCX-10, dCY+bH+8, dCX+10, dCY+bH+18, fill = "pink" )
+    #marker button
+    markerColor= "white"
+    if app.drawingMode: markerColor = "light gray"
+    canvas.create_rectangle(dCX +bW, dCY +bH, dCX +2*bW, dCY+ 3*bH, fill = markerColor )
+    canvas.create_rectangle(dCX+bW+10 , dCY+bH+20, dCX+2*bW-10, dCY+bH+42, fill = "black" )
+    canvas.create_polygon(dCX+bW+10 , dCY+bH+18, dCX+2*bW-10,dCY+bH+18,dCX+3*bW//2,dCY+bH+6,fill = "gray", width = 1 )
+    #file related buttons
+    canvas.create_rectangle(app.width//5-bW, app.height*.78-bH, app.width//5+bW, app.height*.78+bH )
+    canvas.create_text(app.width//5,app.height*.78, text = "save file")
+    canvas.create_rectangle(app.width//5-bW, app.height*.85-bH, app.width//5+bW, app.height*.85+bH)
     canvas.create_text(app.width//5,app.height*.85, text = "open file")
-    canvas.create_rectangle(app.width//2-bW, app.height*.85-bH, app.width//2+bW, app.height*.85+bH )
-    canvas.create_text(app.width//2,app.height*.85, text = "create file")
-    canvas.create_rectangle(app.width*.8-bW, app.height*.85-bH, app.width*.8+bW, app.height*.85+bH )
-    canvas.create_text(app.width*.8,app.height*.85, text = "close app")
+
+def drawDisplayControls(app,canvas):
+    bW = 40 #button half width
+    bH = 30 #button half height
+    cW = app.width//4 #nominal console column width
+    rH = app.height*.03 #nominal console row height
+    tCX = app.width//2 + 115 # cen location of viz tools title text
+    tCY = app.height*.83 # cen location of viz tools title text
+    r = 11 #radio button radius
+    r2 = 6 #inner radio button radius
+    canvas.create_text(tCX,tCY, text = "Visualization Tools")
+    canvas.create_text(tCX-cW,tCY+rH, text = "Midpoints")
+    canvas.create_oval(tCX-cW-10-r,tCY+rH+bH-r,tCX-cW-10+r,tCY+rH+bH+r)
+    if app.midPointsOn: 
+        canvas.create_oval(tCX-cW-10-r2,tCY+rH+bH-r2,tCX-cW-10+r2,tCY+rH+bH+r2, fill= "black")
+    canvas.create_text(tCX-cW+30,tCY+rH+bH, text = "On")
+    canvas.create_oval(tCX-cW-10-r,tCY+rH+2*bH-r,tCX-cW-10+r,tCY+rH+2*bH+r)
+    if not app.midPointsOn:
+        canvas.create_oval(tCX-cW-10-r2,tCY+rH+2*bH-r2,tCX-cW-10+r2,tCY+rH+2*bH+r2,fill="black")
+    canvas.create_text(tCX-cW+30,tCY+rH+2*bH, text = "Off")
+    canvas.create_text(tCX-cW//3,tCY+rH, text = "Ends/Bends")
+    canvas.create_oval(tCX-cW//3-10-r,tCY+rH+bH-r,tCX-cW//3-10+r,tCY+rH+bH+r)
+    if app.endsBendsOn:
+        canvas.create_oval(tCX-cW//3-10-r2,tCY+rH+bH-r2,tCX-cW//3-10+r2,tCY+rH+bH+r2,fill="black" )
+    canvas.create_text(tCX-cW//3+30,tCY+rH+bH, text = "On")
+    canvas.create_oval(tCX-cW//3-10-r,tCY+rH+2*bH-r,tCX-cW//3-10+r,tCY+rH+2*bH+r)
+    if not app.endsBendsOn:
+        canvas.create_oval(tCX-cW//3-10-r2,tCY+rH+2*bH-r2,tCX-cW//3-10+r2,tCY+rH+2*bH+r2,fill ="black")
+    canvas.create_text(tCX-cW//3+30,tCY+rH+2*bH, text = "Off")
+    canvas.create_text(tCX+cW//3,tCY+rH, text = "Trace")
+    canvas.create_oval(tCX+cW//3-10-r,tCY+rH+bH-r,tCX+cW//3-10+r,tCY+rH+bH+r)
+    if app.traceOn:
+        canvas.create_oval(tCX+cW//3-10-r2,tCY+rH+bH-r2,tCX+cW//3-10+r2,tCY+rH+bH+r2,fill ="black")
+    canvas.create_text(tCX+cW//3+30,tCY+rH+bH, text = "On")
+    canvas.create_oval(tCX+cW//3-10-r,tCY+rH+2*bH-r,tCX+cW//3-10+r,tCY+rH+2*bH+r)
+    if not app.traceOn:
+        canvas.create_oval(tCX+cW//3-10-r2,tCY+rH+2*bH-r2,tCX+cW//3-10+r2,tCY+rH+2*bH+r2,fill ="black")
+    canvas.create_text(tCX+cW//3+30,tCY+rH+2*bH, text = "Off")
+    canvas.create_text(tCX+cW,tCY+rH, text = "Contiguous Paths")
+    canvas.create_oval(tCX+cW-10-r,tCY+rH+bH-r,tCX+cW-10+r,tCY+rH+bH+r)
+    if app.contPath == "all":
+        canvas.create_oval(tCX+cW-10-r2,tCY+rH+bH-r2,tCX+cW-10+r2,tCY+rH+bH+r2,fill ="black")
+    canvas.create_text(tCX+cW+30,tCY+rH+bH, text = "All")
+    canvas.create_oval(tCX+cW-10-r,tCY+rH+2*bH-r,tCX+cW-10+r,tCY+rH+2*bH+r)
+    if app.contPath == "one":
+        canvas.create_oval(tCX+cW-10-r2,tCY+rH+2*bH-r2,tCX+cW-10+r2,tCY+rH+2*bH+r2,fill="black")
+    canvas.create_text(tCX+cW+30,tCY+rH+2*bH, text = "One")
+    canvas.create_oval(tCX+cW-10-r,tCY+rH+3*bH-r,tCX+cW-10+r,tCY+rH+3*bH+r)
+    if app.contPath == "off":
+        canvas.create_oval(tCX+cW-10-r2,tCY+rH+3*bH-r2,tCX+cW-10+r2,tCY+rH+3*bH+r2, fill="black")
+    canvas.create_text(tCX+cW+30,tCY+rH+3*bH, text = "Off")
+
+
 
 def drawMidPoints(app, canvas):
-    canvas.create_rectangle(100,100, 380,380)
-    midsList, outlineList = getMidPoints(app)
-    for coords in midsList:
-        ((x,y))=coords
-        x=105+x*20
-        y=105+y*20
-        canvas.create_rectangle(x,y,x+10,y+10, fill="gray")
+    if app.midPointsOn:
+        midsList, outlineList = getMidPoints(app)
+        for coords in midsList:
+            ((x,y))=coords
+            x=app.margin+app.pixW//4+x*app.pixW
+            y=app.margin+app.pixH//4+y*app.pixH
+            canvas.create_rectangle(x,y,x+app.pixW//2,y+app.pixH//2, fill="gray")
 
 def drawGrid(app, canvas):
     rEdge = app.width - app.margin + 1
-    bEdge = app.height - app.margin -200 + 1
+    bEdge = app.height - app.botMargin + 1
     for x in range(app.margin,rEdge, app.pixW):
         canvas.create_line(x,app.margin,x,bEdge)
     for y in range(app.margin,bEdge, app.pixH):
@@ -381,57 +496,60 @@ def drawOutline(app, canvas):
     midsList, outlineList = getMidPoints(app)
     for coords in outlineList:
         ((x,y))=coords
-        x=100+x*20
-        y=100+y*20
-        canvas.create_rectangle(x,y,x+20,y+20, fill ="lightgray")
+        x=app.margin+x*app.pixW
+        y=app.margin+y*app.pixH
+        canvas.create_rectangle(x,y,x+app.pixW,y+app.pixH, fill ="lightgray")
 
 def drawContiguousConnections(app, canvas):
-    midsList, outlineList = getMidPoints(app)
-    if app.contigLinesVisible == True: #TODO: something wrong here 
-        (contMidStart, contMidEnd) = contiguousPairs(app,midsList)
-        for i in range(len(contMidStart)):
-            (x1,y1) = contMidStart[i]
-            (x1,y1) = app.offset + x1*20, app.offset + y1*20 
-            (x2,y2) = contMidEnd[i]
-            (x2,y2) = app.offset + x2*20, app.offset + y2*20
-            if app.oneContigVis == True:
+    if app.contPath != "off":
+        midsList, outlineList = getMidPoints(app)
+        if True: #app.contigLinesVisible == True: #TODO: something wrong here 
+            (contMidStart, contMidEnd) = contiguousPairs(app,midsList)
+            for i in range(len(contMidStart)):
+                (x1,y1) = contMidStart[i]
+                (x1,y1) = app.offset + x1*20, app.offset + y1*20 
+                (x2,y2) = contMidEnd[i]
+                (x2,y2) = app.offset + x2*20, app.offset + y2*20
                 (xs,ys) = getCellUpperLeft(app,app.selRow, app.selCol)
                 (xs,ys) = (xs+10,ys+10)
-                if app.contigLinesVisible == True: 
+                if app.contPath == "all": 
                     canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
-                elif app.selRow == 0 and app.selCol == 0: 
-                    canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
-                else: # (x1 == xs) and (y1 == ys): 
+                elif (x1 == xs) and (y1 == ys): #contPath = "one" 
                     canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
                 
 def drawEnds(app, canvas):
-    for (col,row) in app.ends: # TODO fix this to match row, col convention
-        x = app.offset + col*20
-        y = app.offset + row*20
-        r = 15
-        canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "green", fill = None)
+    if app.endsBendsOn:
+        for (col,row) in app.ends: # TODO fix this to match row, col convention
+            x = app.offset + col*app.pixW
+            y = app.offset + row*app.pixH
+            r = 15
+            canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "green", fill = None)
 
 def drawBends(app, canvas): # TODO fix this to match row, col convention
-    for (col,row) in app.bends:
-        x = app.offset + col*20
-        y = app.offset + row*20
-        r = 15
-        canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "blue", fill = None)
+    if app.endsBendsOn:
+        for (col,row) in app.bends:
+            x = app.offset + col*app.pixW
+            y = app.offset + row*app.pixH
+            r = 15
+            canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "blue", fill = None)
 
 
 def drawTrace(app, canvas):
-    for i in range(1,len(app.trace)):
-        if app.trace[i-1] != "gap" and app.trace[i] !="gap":
-            (x1,y1) = app.trace[i-1]
-            (x1,y1) = app.offset + x1*20, app.offset + y1*20 
-            (x2,y2) = app.trace[i]
-            (x2,y2) = app.offset + x2*20, app.offset + y2*20
-            canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 3)
+    if app.traceOn:
+        for i in range(1,len(app.trace)):
+            if app.trace[i-1] != "gap" and app.trace[i] !="gap":
+                (x1,y1) = app.trace[i-1]
+                (x1,y1) = app.offset + x1*app.pixW, app.offset + y1*app.pixH 
+                (x2,y2) = app.trace[i]
+                (x2,y2) = app.offset + x2*app.pixW, app.offset + y2*app.pixH
+                canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 3)
 
 
 def timerFired(app):
     variables(app)
     findEnds(app) #TODO hard to imagine this should be here
+    getTrace(app) #TODO put these in the right places
+    findEnds(app)
 
 
 def drawCharacter(app, canvas):
@@ -447,6 +565,7 @@ def drawCharacter(app, canvas):
 def redrawAll(app, canvas):
     drawGrid(app,canvas)
     drawButtons(app,canvas)
+    drawDisplayControls(app,canvas)
     drawCharacter(app,canvas)
     
 
