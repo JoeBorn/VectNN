@@ -13,6 +13,10 @@ def openFile(app):
     Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
     app.file = filedialog.askopenfilename() # show an "Open" dialog box and return the path to the selected file
     app.img = Image.open(app.file)
+    app.pixels = list(app.img.getdata())
+    findEnds(app) #TODO 
+    getMidPoints(app)
+    getTrace(app)
     
 
 #TODO: grid screws up when canvas stretched
@@ -26,18 +30,20 @@ def appStarted(app):
     app.selCol = 0
     app.selRow = 0
     app.margin = 100
+    app.botMargin = 300
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
     app.file = 'C:/mnist/mnist_all_files/training/4/9.png'  
     app.img = Image.open(app.file)
+    app.pixels = list(app.img.getdata())
     variables(app)
     findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-
-
+    
 
 def variables(app):
-    app.pixWH = (app.width - 2*app.margin)//app.cols
+    app.pixW = (app.width - 2*app.margin)//app.cols
+    app.pixH = (app.height - 2*app.margin -app.botMargin)//app.rows
     app.threshold = 120 # lightness threshold to determine edges of chars
     #0 is black, 255 is white, on pngs, letters are light on black background
 
@@ -52,6 +58,9 @@ def roundHalfUp(d):
 def pointInGrid(app,x,y):
     return ((app.margin <= x <= app.width - app.margin) and \
         (app.margin <= y <=app.height -app.margin))
+
+def sizeChanged(app):
+    variables(app)
 
 def mousePressed(app, event):
     bW = 80 #button half width
@@ -74,18 +83,18 @@ def mousePressed(app, event):
 def getGridCoords(app,x,y): #view to model
     if not pointInGrid(app,x,y):
         return (-1,-1)
-    col = int((x-app.margin)/app.pixWH)
-    row = int((y-app.margin)/app.pixWH)
+    col = int((x-app.margin)/app.pixW)
+    row = int((y-app.margin)/app.pixH)
     return col, row
     
 def getCellUpperLeft(app,row, col):#model to view
-    x1 = app.margin + col*app.pixWH
-    y1 = app.margin + row*app.pixWH
+    x1 = app.margin + col*app.pixW
+    y1 = app.margin + row*app.pixH
     return(x1,y1)
 
 def drawSelection(app, canvas):
     (x1,y1) = getCellUpperLeft(app,app.selRow, app.selCol)
-    canvas.create_rectangle(x1,y1,x1+app.pixWH,y1+app.pixWH, width= 3, fill = None)
+    canvas.create_rectangle(x1,y1,x1+app.pixW,y1+app.pixH, width= 3, fill = None)
 
 def keyPressed(app, event):
     if event.key.lower() == 'space':
@@ -216,8 +225,7 @@ def getTrace(app):
 
 #takes original "image" list and two midpoints(tuple with two ints(row and column coords)) 
 # and returns if they are contiguous
-def areContiguous(app,mid1,mid2): 
-    app.pixels = list(app.img.getdata()) 
+def areContiguous(app,mid1,mid2):  
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     largestX = max(x1,x2)
@@ -334,6 +342,11 @@ def findEnds(app):
 def drawButtons(app, canvas):
     bW = 80 #button half width
     bH = 25 #button half height
+    canvas.create_rectangle(app.width//2+100-bW//2, app.height*.75-bH, app.width//2+100+bW//2, app.height*.75+bH )
+    canvas.create_text(app.width//2+100,app.height*.75, text = "Clear")
+    canvas.create_rectangle(app.width*.8-bW//2, app.height*.75-bH, app.width*.8+bW//2, app.height*.75+bH )
+    canvas.create_rectangle(app.width*.8-10, app.height*.75, app.width*.8+10, app.height*.75+20, fill = "gray" )
+    canvas.create_polygon(app.width*.8-10, app.height*.748, app.width*.8+10, app.height*.748, app.width*.8,app.height*.75-18, fill = "gray", width = 1 )
     canvas.create_rectangle(app.width//5-bW, app.height*.85-bH, app.width//5+bW, app.height*.85+bH )
     canvas.create_text(app.width//5,app.height*.85, text = "open file")
     canvas.create_rectangle(app.width//2-bW, app.height*.85-bH, app.width//2+bW, app.height*.85+bH )
@@ -353,13 +366,13 @@ def drawMidPoints(app, canvas):
 def drawGrid(app, canvas):
     rEdge = app.width - app.margin + 1
     bEdge = app.height - app.margin -200 + 1
-    for x in range(app.margin,rEdge, app.pixWH):
+    for x in range(app.margin,rEdge, app.pixW):
         canvas.create_line(x,app.margin,x,bEdge)
-    for y in range(app.margin,bEdge, app.pixWH):
+    for y in range(app.margin,bEdge, app.pixH):
         canvas.create_line(app.margin,y,rEdge,y)
-    for x in range(app.margin,rEdge, app.pixWH*5):
+    for x in range(app.margin,rEdge, app.pixW*5):
         canvas.create_line(x,app.margin,x,bEdge, width = 2)
-    for y in range(app.margin,rEdge, app.pixWH*5):
+    for y in range(app.margin,rEdge, app.pixH*5):
         canvas.create_line(app.margin,y,bEdge,y, width = 2)
     canvas.create_text(100,700, text =f'sel Coord(row,col) : {app.selRow} , {app.selCol}')
 
@@ -384,9 +397,11 @@ def drawContiguousConnections(app, canvas):
             if app.oneContigVis == True:
                 (xs,ys) = getCellUpperLeft(app,app.selRow, app.selCol)
                 (xs,ys) = (xs+10,ys+10)
-                if app.selRow == 0 and app.selCol == 0: 
+                if app.contigLinesVisible == True: 
                     canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
-                elif (x1 == xs) and (y1 == ys): 
+                elif app.selRow == 0 and app.selCol == 0: 
+                    canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
+                else: # (x1 == xs) and (y1 == ys): 
                     canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
                 
 def drawEnds(app, canvas):
@@ -422,11 +437,11 @@ def timerFired(app):
 def drawCharacter(app, canvas):
     drawOutline(app, canvas)
     drawMidPoints(app, canvas)
-    #drawEnds(app, canvas)
-    #drawBends(app, canvas)
+    drawEnds(app, canvas)
+    drawBends(app, canvas)
     drawSelection(app, canvas)
     drawTrace(app, canvas)
-    #drawContiguousConnections(app, canvas)
+    drawContiguousConnections(app, canvas)
 
 
 def redrawAll(app, canvas):
@@ -437,7 +452,7 @@ def redrawAll(app, canvas):
 
 def main():
     #cs112_s21_week4_linter.lint()
-    runApp(width=760, height=960)
+    runApp(width=762, height=962)
     
 
 if __name__ == '__main__':
