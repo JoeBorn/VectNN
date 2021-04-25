@@ -2,10 +2,12 @@
 all rights reserved '''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
+#from vnn_TF import *
 import random, string, math, time
 import PIL, copy
 from PIL import Image 
 import decimal
+
 
 
 def openFile(app):
@@ -30,7 +32,7 @@ def appStarted(app):
     app.margin = 100
     app.botMargin = 300
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
-    app.file = 'C:/mnist/mnist_all_files/training/4/9.png'  
+    app.file = 'C:/mnist/mnist_all_files/training/2/190.png'  
     app.img = Image.open(app.file)
     app.pixels = list(app.img.getdata())
     app.drawingMode = None
@@ -44,7 +46,13 @@ def appStarted(app):
     findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-    
+    '''
+    trainNN(app)
+    writeSample(app)
+    prediction = predictSample(app).tolist()
+    print(max(prediction))
+    print(prediction.index(max(prediction)))
+    '''
 
 def variables(app):
     app.pixW = (app.width - 2*app.margin)//app.cols
@@ -70,10 +78,14 @@ def sizeChanged(app):
     variables(app)
 
 def mousePressed(app, event):
-    bW = 80 #button half width
-    bH = 25 #button half height
     if pointInGrid(app,event.x,event.y):
         app.selCol, app.selRow = getGridCoords(app,event.x,event.y)
+        if app.markerActive:
+            index = getIndex(app.selCol,app.selRow)
+            app.pixels[index]= 250 # sets pixel to an arbitrary "light" value
+        if app.eraserActive:
+            index = getIndex(app.selCol,app.selRow)
+            app.pixels[index]= 2 # sets pixel to an arbitrary "light" value
     elif .55*app.width<event.x<.76*app.width and .73*app.height<event.y<.78*app.height:
         drawingButtonPressed(app, event.x,event.y)
     elif .15*app.width<event.x<.25*app.width and .75*app.height<event.y<.88*app.height:
@@ -86,13 +98,11 @@ def drawingButtonPressed(app,x,y):
     if .55*app.width<x<.60*app.width and .73*app.height<y<.78*app.height:
         appStarted(app)
     if .63*app.width<x<.67*app.width and .73*app.height<y<.78*app.height:
-        app.eraserActive = not app.erasterActive
+        app.eraserActive = not app.eraserActive
         app.markerActive = False
-        print("eraserActive") 
     if .71*app.width<x<.75*app.width and .73*app.height<y<.78*app.height:
         app.markerActive = not app.markerActive
         app.eraserActive = False
-        print("markerActive")
 
 def fileButtonPressed(app,x,y):
     if .15*app.width<x<.25*app.width and .76*app.height<y<.80*app.height:
@@ -122,16 +132,15 @@ def visualizationButtonPressed(app,x,y):
     elif (.89*app.width-x)**2 +(.95*app.height-y)**2 < r**2:
         app.contPath = "off"    
 
-
-
 def mouseDragged(app, event):
-    if app.drawingMode == False:
-        return
-    x,y = getGridCoords(app,event.x,event.y)
-    index = getIndex(x,y)
-    app.pixels[index]= 250 # sets pixel to an arbitrary "light" value
-
-    
+    if app.markerActive:
+        x,y = getGridCoords(app,event.x,event.y)
+        index = getIndex(x,y)
+        app.pixels[index]= 250 # sets pixel to an arbitrary "light" value
+    if app.eraserActive:
+        x,y = getGridCoords(app,event.x,event.y)
+        index = getIndex(x,y)
+        app.pixels[index]= 2 # sets pixel to an arbitrary "dark" value
 
 def getGridCoords(app,x,y): #view to model
     if not pointInGrid(app,x,y):
@@ -197,36 +206,36 @@ def getStartPoint(app): #returns starting point to trace
             dist = math.sqrt(row**2 + col**2)
             if dist < minDist:
                 minDist = dist
-                (startCol, startRow) = (col,row)
-        app.ends.remove((startCol,startRow))
-        return (startCol, startRow)
+                (startX, startY) = (col,row)
+        app.ends.remove((startX,startY))
+        return (startX, startY)
     #if no end, start with the bend closest to 0,0
     elif app.bends != []:
         for (col, row) in app.bends:
             dist = math.sqrt(row**2 + col**2)
             if dist < minDist:
                 minDist = dist
-                (startCol, startRow) = (col,row)
-        app.bends.remove((startCol,startRow))#TODO mistake- this removes each end in order (or should anyway)
-        return (startCol, startRow)
+                (startX, startY) = (col,row)
+        app.bends.remove((startX,startY))#TODO mistake- this removes each end in order (or should anyway)
+        return (startX, startY)
     else: return (None, None)
 
 def getTrace(app):
     app.trace = []
     #start with the end closest to 0,0
-    (startCol, startRow) = getStartPoint(app)
-    app.trace.append((startCol, startRow))
+    (startX, startY) = getStartPoint(app)
+    app.trace.append((startX, startY))
     #connect to farthest contiguous point
     midsList, outlineList = getMidPoints(app)# TODO eliminate all the calls to gMP, put midslist etc in app...
     while len(midsList) > 1:
-        traceIndex = app.trace.index((startCol,startRow))
+        traceIndex = app.trace.index((startX,startY))
         #print ("ML prior: ", midsList)
         maxDistance = 0
         for index in range(len(midsList)):
-            if areContiguous(app,(startCol, startRow),midsList[index]):
+            if areContiguous(app,(startX, startY),midsList[index]):
                 (x,y) = midsList[index] #TODO: pick one, it's either row, col or x,y
                 if traceIndex == 0 or app.trace[traceIndex-1] == 'gap':
-                    dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
+                    dist = math.sqrt((startX - x)**2 +(startY - y)**2)
                 else:
                     (priorX,priorY)= app.trace[traceIndex - 1]
                     dist = math.sqrt((priorX - x)**2 +(priorY - y)**2)
@@ -235,39 +244,45 @@ def getTrace(app):
                     (endX, endY) = (x,y)
                     #print("endX,endY", x,y)
         if maxDistance >= 1: app.trace.append((endX,endY))
-        if (startCol,startRow) in midsList: midsList.remove((startCol,startRow))
+        if (startX,startY) in midsList: midsList.remove((startX,startY))
         index = 0
+        #maxDist is dist between this x and the "prior" X.  Whereas lasDist
+        #is the distance between the most recent two trace points
+        lastDist = math.sqrt((startX-endX)**2+(startY-endY)**2)
         while index < (len(midsList)): #removes intermediate points from ML
-            if areContiguous(app,(startCol, startRow),midsList[index]) and \
+            if areContiguous(app,(startX, startY),midsList[index]) and \
                 areContiguous(app, (endX,endY), midsList[index]):
                 (x,y) = midsList[index]
-                if traceIndex == 0 or app.trace[traceIndex -1] == "gap":
-                    dist = math.sqrt((startCol - x)**2 +(startRow - y)**2)
+                # I do not think we want to remove points closer than dist determined by "prior"
+                # see problem with 2/190
+                if True: #traceIndex == 0 or app.trace[traceIndex -1] == "gap":
+                    dist = math.sqrt((endX - x)**2 +(endY - y)**2)
                 else:
                     (priorX,priorY)= app.trace[traceIndex - 1]
                     dist = math.sqrt((priorX - x)**2 +(priorY - y)**2)
                 #print ("x,y,dist: ", x,y,dist, end = " ")
-                if dist <= maxDistance:
+                if dist <= lastDist:
                     midsList.pop(index)
                     if (x,y) in app.ends: app.ends.remove((x,y))
                     if (x,y) in app.bends: app.bends.remove((x,y))
                 else: index += 1
             else: index += 1
-        if (startCol,startRow) != (endX,endY): # it found a new connection point
-            (startCol,startRow) = (endX,endY)
+        if (startX,startY) != (endX,endY): # it found a new connection point
+            (startX,startY) = (endX,endY)
         else: #failing that, make sure all ends/bends are connected
-            (startCol,startRow)= getStartPoint(app)
-            if (startCol,startRow) == (None,None): break #if ends/bends gone,we're done
+            (startX,startY)= getStartPoint(app)
+            if (startX,startY) == (None,None): break #if ends/bends gone,we're done
             #TODO: sometimes leaves ends unconnected, see notes on 4/336.png
             else:
                 app.trace.append("gap") 
-                app.trace.append((startCol, startRow))
+                app.trace.append((startX, startY))
         if (endX,endY) in midsList: midsList.remove((endX,endY))
         #print("app.trace", app.trace)
         #print("ML after: ",midsList)
         #input("press any key")
     if areContiguous(app,app.trace[0],app.trace[-1]):
         app.trace.append(app.trace[0]) #closing the loop on closed chars
+        #TODO: maybe this is ok, but see training/0/283 it doesn't find the connecting end "soon enough"
     #print (app.trace) 
 
     # delete all midpoints "passed"
@@ -401,12 +416,14 @@ def drawButtons(app, canvas):
     canvas.create_rectangle(dCX -2*bW, dCY +bH, dCX -bW, dCY+ 3*bH)
     canvas.create_text(dCX-3*bW//2,dCY +2*bH, text = "Clear")
     #eraser button
-    canvas.create_rectangle(dCX -bW//2, dCY +bH, dCX +bW//2, dCY+ 3*bH)
+    eraserColor = "white"
+    if app.eraserActive: eraserColor = "light gray"
+    canvas.create_rectangle(dCX -bW//2, dCY +bH, dCX +bW//2, dCY+ 3*bH, fill = eraserColor)
     canvas.create_rectangle(dCX-10, dCY+bH+20, dCX+10, dCY+bH+42, fill = "black" )
     canvas.create_rectangle(dCX-10, dCY+bH+8, dCX+10, dCY+bH+18, fill = "pink" )
     #marker button
     markerColor= "white"
-    if app.drawingMode: markerColor = "light gray"
+    if app.markerActive: markerColor = "light gray"
     canvas.create_rectangle(dCX +bW, dCY +bH, dCX +2*bW, dCY+ 3*bH, fill = markerColor )
     canvas.create_rectangle(dCX+bW+10 , dCY+bH+20, dCX+2*bW-10, dCY+bH+42, fill = "black" )
     canvas.create_polygon(dCX+bW+10 , dCY+bH+18, dCX+2*bW-10,dCY+bH+18,dCX+3*bW//2,dCY+bH+6,fill = "gray", width = 1 )
@@ -417,7 +434,6 @@ def drawButtons(app, canvas):
     canvas.create_text(app.width//5,app.height*.85, text = "open file")
 
 def drawDisplayControls(app,canvas):
-    bW = 40 #button half width
     bH = 30 #button half height
     cW = app.width//4 #nominal console column width
     rH = app.height*.03 #nominal console row height
@@ -444,6 +460,15 @@ def drawDisplayControls(app,canvas):
     if not app.endsBendsOn:
         canvas.create_oval(tCX-cW//3-10-r2,tCY+rH+2*bH-r2,tCX-cW//3-10+r2,tCY+rH+2*bH+r2,fill ="black")
     canvas.create_text(tCX-cW//3+30,tCY+rH+2*bH, text = "Off")
+
+def drawDisplayControls2(app, canvas):
+    bH = 30 #button half height
+    cW = app.width//4 #nominal console column width
+    rH = app.height*.03 #nominal console row height
+    tCX = app.width//2 + 115 # cen location of viz tools title text
+    tCY = app.height*.83 # cen location of viz tools title text
+    r = 11 #radio button radius
+    r2 = 6 #inner radio button radius
     canvas.create_text(tCX+cW//3,tCY+rH, text = "Trace")
     canvas.create_oval(tCX+cW//3-10-r,tCY+rH+bH-r,tCX+cW//3-10+r,tCY+rH+bH+r)
     if app.traceOn:
@@ -492,7 +517,7 @@ def drawGrid(app, canvas):
     canvas.create_text(100,700, text =f'sel Coord(row,col) : {app.selRow} , {app.selCol}')
 
 def drawOutline(app, canvas):
-    canvas.create_text(100,50, text=f'Threshold: {app.threshold}    {app.file}', font='Courier 11 bold', anchor = 'w')
+    canvas.create_text(30,app.height*.975, text=f'Threshold: {app.threshold}    {app.file}', font='Times 11', anchor = 'w')
     midsList, outlineList = getMidPoints(app)
     for coords in outlineList:
         ((x,y))=coords
@@ -536,6 +561,9 @@ def drawBends(app, canvas): # TODO fix this to match row, col convention
 
 def drawTrace(app, canvas):
     if app.traceOn:
+        (startX,startY) = app.trace[0]
+        startX,startY =app.offset + startX*app.pixW, app.offset + startY*app.pixH
+        canvas.create_oval(startX-5,startY-5,startX+5,startY+5, fill="red")
         for i in range(1,len(app.trace)):
             if app.trace[i-1] != "gap" and app.trace[i] !="gap":
                 (x1,y1) = app.trace[i-1]
@@ -544,6 +572,13 @@ def drawTrace(app, canvas):
                 (x2,y2) = app.offset + x2*app.pixW, app.offset + y2*app.pixH
                 canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 3)
 
+def drawPrediction(app, canvas):
+    canvas.create_text(app.width//2, app.height*.01,text= "Prediction:", anchor = "w")
+    testList = [0.0001, 0.8, 0.2,0.0001,0.02, 0.02, 0.02, 0.02, 0.02, 0.01]
+    canvas.create_rectangle(app.width//2-5,app.height*.071,app.width//2 +200,app.height*.07-40)
+    for i in range(len(testList)):
+        canvas.create_rectangle(app.width//2 +i*20,app.height*.07,app.width//2 +i*20+10, app.height*.07-testList[i]*40, fill="red")
+        canvas.create_text(app.width//2+i*20 +5, app.height*.08,text= f"{i}")
 
 def timerFired(app):
     variables(app)
@@ -566,7 +601,9 @@ def redrawAll(app, canvas):
     drawGrid(app,canvas)
     drawButtons(app,canvas)
     drawDisplayControls(app,canvas)
+    drawDisplayControls2(app,canvas)
     drawCharacter(app,canvas)
+    drawPrediction(app,canvas)
     
 
 def main():
