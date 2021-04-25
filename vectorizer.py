@@ -32,7 +32,7 @@ def appStarted(app):
     app.margin = 100
     app.botMargin = 300
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
-    app.file = 'C:/mnist/mnist_all_files/training/2/190.png'  
+    app.file = 'C:/mnist/mnist_all_files/training/8/17.png'  
     app.img = Image.open(app.file)
     app.pixels = list(app.img.getdata())
     app.drawingMode = None
@@ -46,22 +46,21 @@ def appStarted(app):
     findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-    '''
-    trainNN(app)
+    
+'''    trainNN(app)
     writeSample(app)
     prediction = predictSample(app).tolist()
     print(max(prediction))
     print(prediction.index(max(prediction)))
-    '''
+'''
 
 def variables(app):
     app.pixW = (app.width - 2*app.margin)//app.cols
     app.pixH = (app.height - app.margin -app.botMargin)//app.rows
     app.threshold = 120 # lightness threshold to determine edges of chars
     #0 is black, 255 is white, on pngs, letters are light on black background
-    
-    app.drawnCenters = [] # list of mouse event tuples when drawing a char
 
+#https://www.cs.cmu.edu/~112/notes/notes-variables-and-functions.html#RecommendedFunctions.
 def roundHalfUp(d):
     # Round to nearest with ties going away from zero.
     rounding = decimal.ROUND_HALF_UP
@@ -250,15 +249,19 @@ def getTrace(app):
         #is the distance between the most recent two trace points
         lastDist = math.sqrt((startX-endX)**2+(startY-endY)**2)
         while index < (len(midsList)): #removes intermediate points from ML
-            if areContiguous(app,(startX, startY),midsList[index]) and \
-                areContiguous(app, (endX,endY), midsList[index]):
-                (x,y) = midsList[index]
+            (x,y) = midsList[index]
+            if areContiguous(app,(startX, startY),(x,y)) and \
+                areContiguous(app, (endX,endY), (x,y)):
                 dist = math.sqrt((startX - x)**2 +(startY - y)**2)
                 if dist <= lastDist:
                     midsList.pop(index)
                     if (x,y) in app.ends: app.ends.remove((x,y))
                     if (x,y) in app.bends: app.bends.remove((x,y))
                 else: index += 1
+            elif min(startX,endX) <= x <= max(startX,endX) and \
+            min(startY,endY) <= y <= max(startY,endY) and isConnected(app,(endX,endY),(x,y)):
+                    if (x,y) == (11,11): print("x,y,endX,endY: ", x,y,endX,endY)
+                    midsList.pop(index)    
             else: index += 1
         if (startX,startY) != (endX,endY): # it found a new connection point
             (startX,startY) = (endX,endY)
@@ -273,10 +276,36 @@ def getTrace(app):
         #print("app.trace", app.trace)
         #print("ML after: ",midsList)
         #input("press any key")
-    if areContiguous(app,app.trace[0],app.trace[-1]):
-        app.trace.append(app.trace[0]) #closing the loop on closed chars
-        #TODO: maybe this is ok, but see training/0/283 it doesn't find the connecting end "soon enough"
-    #print (app.trace) 
+    closeTheLoop(app)
+
+#closing the loop on closed chars
+#TODO: need a test to determine if char otherwise closed, see 3/7.png
+def closeTheLoop(app):
+    if "gap" not in app.trace:
+        startX, startY = app.trace[0]
+        endX, endY = app.trace[-1]
+        threshold = 1.6
+        if areContiguous(app,app.trace[0],app.trace[-1]):
+            app.trace.append(app.trace[0]) 
+            #TODO: maybe this is ok, but see training/0/283 it doesn't find the connecting end "soon enough"
+        else: # if start and end aren't contiguous, is there a point connecting them?
+            midsList, outlineList = getMidPoints(app)
+            minDist = 1000
+            for i in range(len(midsList)):
+                if(areContiguous(app,app.trace[0],midsList[i])) and areContiguous(app,app.trace[-1],midsList[i]):
+                    dist = distance((startX,startY),(midsList[i])) + distance((endX,endY),(midsList[i]))
+                    if dist < minDist:
+                        minDist = dist
+                        (xConnection,yConnection) = midsList[i]
+            if minDist < distance((startX,startY),(endX,endY))*threshold:
+                app.trace.append((xConnection,yConnection))
+                app.trace.append(app.trace[0])
+
+def distance(coord1,coord2):
+    (x1,y1) = coord1
+    (x2,y2) = coord2 
+    return math.sqrt((x2-x1)**2+(y2-y1)**2)
+
 
     # delete all midpoints "passed"
     #"passed" means closer to the from mid point and contiguous to both
@@ -291,10 +320,7 @@ def areContiguous(app,mid1,mid2):
     (x2,y2) = (mid2[0], mid2[1])
     largestX = max(x1,x2)
     smallestX = min(x1,x2)
-    heightThreshold = 5 
-    #below checks for mids connected by "L" sections that should not be bridged
-    if abs(y1-y2) >= heightThreshold: isTall= True
-    else: isTall = False   
+    #below checks for mids connected by "L" sections that should not be bridged 
     if abs(x1-x2)>1 and abs(y1-y2) > 1: 
         m = (y2-y1)/(x2-x1) # m is the slope
         b = y1+.5-m*(x1+.5) # b is the y intercept
@@ -305,16 +331,8 @@ def areContiguous(app,mid1,mid2):
             xMin = max(smallestX,int(min(xStart,xEnd)))
             xMax = min(largestX,roundHalfUp(max(xStart,xEnd)))
             xMid = (xMin + xMax)//2
-            #gives more latitude to find bridge pixel if section tall
-            if isTall:
-                bridgeFound = False
-                for subY in range(max(y-1,yMin),min(y+2,yMax)):
-                    if app.pixels[getIndex(xMid,subY)] > app.threshold:
-                        bridgeFound = True
-                if bridgeFound == False: return False
-            else:    
-                if app.pixels[getIndex(xMid,y)] < app.threshold:
-                    return False
+            if app.pixels[getIndex(xMid,y)] < app.threshold:
+                return False
     if not isConnected(app, mid1,mid2):
         return False 
     return True
@@ -496,8 +514,6 @@ def drawDisplayControls2(app, canvas):
         canvas.create_oval(tCX+cW-10-r2,tCY+rH+3*bH-r2,tCX+cW-10+r2,tCY+rH+3*bH+r2, fill="black")
     canvas.create_text(tCX+cW+30,tCY+rH+3*bH, text = "Off")
 
-
-
 def drawMidPoints(app, canvas):
     if app.midPointsOn:
         midsList, outlineList = getMidPoints(app)
@@ -577,12 +593,15 @@ def drawTrace(app, canvas):
                 canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 3)
 
 def drawPrediction(app, canvas):
-    canvas.create_text(app.width//2, app.height*.01,text= "Prediction:", anchor = "w")
+    canvas.create_rectangle(app.width*.18,app.height*.071,app.width*.27,app.height*.028)
+    canvas.create_text(app.width*.225,app.height*.05, text= "Predict")
+    canvas.create_text(app.width*.35, app.height*.01,text= "Prediction:", anchor = "w")
     testList = [0.0001, 0.8, 0.2,0.0001,0.02, 0.02, 0.02, 0.02, 0.02, 0.01]
-    canvas.create_rectangle(app.width//2-5,app.height*.071,app.width//2 +200,app.height*.07-40)
-    for i in range(len(testList)):
-        canvas.create_rectangle(app.width//2 +i*20,app.height*.07,app.width//2 +i*20+10, app.height*.07-testList[i]*40, fill="red")
-        canvas.create_text(app.width//2+i*20 +5, app.height*.08,text= f"{i}")
+    if app.predictionMade:
+        canvas.create_rectangle(app.width//2-5,app.height*.071,app.width//2 +200,app.height*.028)
+        for i in range(len(testList)):
+            canvas.create_rectangle(app.width//2 +i*20,app.height*.07,app.width//2 +i*20+10, app.height*.07-testList[i]*40, fill="red")
+            canvas.create_text(app.width//2+i*20 +5, app.height*.08,text= f"{i}")
 
 def timerFired(app):
     variables(app)
