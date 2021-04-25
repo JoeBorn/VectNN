@@ -545,7 +545,7 @@ def drawGrid(app, canvas):
         canvas.create_line(x,app.margin,x,bEdge, width = 2)
     for y in range(app.margin,rEdge, app.pixH*5):
         canvas.create_line(app.margin,y,bEdge,y, width = 2)
-    canvas.create_text(100,700, text =f'sel Coord(row,col) : {app.selRow} , {app.selCol}')
+    canvas.create_text(100,700, text =f'Selected Coord(x,y): {app.selCol}, {app.selRow}')
 
 def drawOutline(app, canvas):
     canvas.create_text(30,app.height*.975, text=f'Threshold: {app.threshold}    {app.file}', font='Times 11', anchor = 'w')
