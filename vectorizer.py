@@ -233,7 +233,7 @@ def getTrace(app):
         maxDistance = 0
         for index in range(len(midsList)):
             if areContiguous(app,(startX, startY),midsList[index]):
-                (x,y) = midsList[index] #TODO: pick one, it's either row, col or x,y
+                (x,y) = midsList[index] 
                 if traceIndex == 0 or app.trace[traceIndex-1] == 'gap':
                     dist = math.sqrt((startX - x)**2 +(startY - y)**2)
                 else:
@@ -246,21 +246,14 @@ def getTrace(app):
         if maxDistance >= 1: app.trace.append((endX,endY))
         if (startX,startY) in midsList: midsList.remove((startX,startY))
         index = 0
-        #maxDist is dist between this x and the "prior" X.  Whereas lasDist
+        #maxDist is dist between this x and the "prior" X.  Whereas lastDist
         #is the distance between the most recent two trace points
         lastDist = math.sqrt((startX-endX)**2+(startY-endY)**2)
         while index < (len(midsList)): #removes intermediate points from ML
             if areContiguous(app,(startX, startY),midsList[index]) and \
                 areContiguous(app, (endX,endY), midsList[index]):
                 (x,y) = midsList[index]
-                # I do not think we want to remove points closer than dist determined by "prior"
-                # see problem with 2/190
-                if True: #traceIndex == 0 or app.trace[traceIndex -1] == "gap":
-                    dist = math.sqrt((endX - x)**2 +(endY - y)**2)
-                else:
-                    (priorX,priorY)= app.trace[traceIndex - 1]
-                    dist = math.sqrt((priorX - x)**2 +(priorY - y)**2)
-                #print ("x,y,dist: ", x,y,dist, end = " ")
+                dist = math.sqrt((startX - x)**2 +(startY - y)**2)
                 if dist <= lastDist:
                     midsList.pop(index)
                     if (x,y) in app.ends: app.ends.remove((x,y))
@@ -291,31 +284,42 @@ def getTrace(app):
     #done when no midpoints are left (either because they were chosen or skipped)
 
 
-#takes original "image" list and two midpoints(tuple with two ints(row and column coords)) 
-# and returns if they are contiguous
+#takes original "image" list and two midpoints and returns if they are contiguous
+# ie if they are candidates to be connected directly by the trace.
 def areContiguous(app,mid1,mid2):  
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     largestX = max(x1,x2)
-    smallestX = min(x1,x2)     
-    if abs(x1-x2) > 1 and abs(y1-y2) > 1: 
+    smallestX = min(x1,x2)
+    heightThreshold = 5 
+    #below checks for mids connected by "L" sections that should not be bridged
+    if abs(y1-y2) >= heightThreshold: isTall= True
+    else: isTall = False   
+    if abs(x1-x2)>1 and abs(y1-y2) > 1: 
         m = (y2-y1)/(x2-x1) # m is the slope
-        b = y1+.5 -m*(x1+.5) # b is the y intercept
-        for row in range(min(y1,y2),max(y1,y2)+1):
-            xStart = (row-b)/m
-            xEnd = (row +1-b)/m
+        b = y1+.5-m*(x1+.5) # b is the y intercept
+        yMin, yMax = min(y1,y2),max(y1,y2)
+        for y in range(yMin,yMax+1):
+            xStart = (y-b)/m
+            xEnd = (y+1-b)/m
             xMin = max(smallestX,int(min(xStart,xEnd)))
             xMax = min(largestX,roundHalfUp(max(xStart,xEnd)))
             xMid = (xMin + xMax)//2
-            #requiring the char pixel in xMid is the more restrictive case, but 
-            #seems to work ok.
-            if app.pixels[getIndex(xMid,row)] < app.threshold:
-                return False
+            #gives more latitude to find bridge pixel if section tall
+            if isTall:
+                bridgeFound = False
+                for subY in range(max(y-1,yMin),min(y+2,yMax)):
+                    if app.pixels[getIndex(xMid,subY)] > app.threshold:
+                        bridgeFound = True
+                if bridgeFound == False: return False
+            else:    
+                if app.pixels[getIndex(xMid,y)] < app.threshold:
+                    return False
     if not isConnected(app, mid1,mid2):
         return False 
     return True
 
-def isConnected(app,mid1,mid2): 
+def isConnected(app,mid1,mid2): #makes sure no gap between midpoints
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     if abs(x1-x2)==1 and abs(y1-y2)==1: #by definition so to speak
@@ -335,8 +339,8 @@ def isConnected(app,mid1,mid2):
         if x2 > x1: dx = 1
         elif x1 > x2: dx = -1
         else: dx = 0
-        if y2 > y1:dy = 1
-        elif y1 > y2:dy = -1
+        if y2 > y1: dy = 1
+        elif y1 > y2: dy = -1
         else: dy = 0
         if getIndex(x2-dx,y2) > 783: print(getIndex(x2-dx,y2),x2,dx,y2)
         if app.pixels[getIndex(x2,y2-dy)] > app.threshold and isConnected(app,(x1,y1),(x2,y2-dy)):
