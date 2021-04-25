@@ -69,7 +69,13 @@ def openFile(app):
     getTrace(app)
     app.predictionMade = False
 
-
+def saveFile(app):
+    #https://pythonbasics.org/tkinter-filedialog/
+    Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+    app.newFile = filedialog.asksaveasfilename() # show an "Open" dialog box and return the path to the selected file
+    savedImg =Image.new("L",(28,28))
+    savedImg.putdata(app.pixels)
+    savedImg.save(app.newFile)
 
 #grid details derived from: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
 def pointInGrid(app,x,y):
@@ -110,8 +116,7 @@ def drawingButtonPressed(app,x,y):
 
 def fileButtonPressed(app,x,y):
     if .15*app.width<x<.25*app.width and .76*app.height<y<.80*app.height:
-        print("file save dialog")
-        #saveFile(app)
+        saveFile(app)
     if .15*app.width<x<.25*app.width and .83*app.height<y<.87*app.height:
         openFile(app)
 
@@ -323,6 +328,7 @@ def distance(coord1,coord2):
 def areContiguous(app,mid1,mid2):  
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
+    if x1 == None or y1 == None or x2 == None or y2 == None: return False
     largestX = max(x1,x2)
     smallestX = min(x1,x2)
     #below checks for mids connected by "L" sections that should not be bridged 
@@ -585,7 +591,7 @@ def drawBends(app, canvas): # TODO fix this to match row, col convention
 
 
 def drawTrace(app, canvas):
-    if app.traceOn:
+    if app.traceOn  and app.trace[0] != (None,None):
         (startX,startY) = app.trace[0]
         startX,startY =app.offset + startX*app.pixW, app.offset + startY*app.pixH
         canvas.create_oval(startX-5,startY-5,startX+5,startY+5, fill="red")
