@@ -2,7 +2,7 @@
 all rights reserved '''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
-from vnn_TF import *
+#from vnn_TF import *
 import random, string, math, time
 import PIL, copy
 from PIL import Image 
@@ -12,10 +12,10 @@ import decimal
 #file = 'C:/GitHub/VectNN/JB_4.bmp'
 
 def appStarted(app):
-    app.rows = 28 # a row and col for each pixel 
-    app.cols = 28 # a row and col for each pixel 
-    app.selCol = 0
-    app.selRow = 0
+    app.rows = 28 # a y and x for each pixel 
+    app.cols = 28 # a y and x for each pixel 
+    app.selX = 0
+    app.selY = 0
     app.margin = 100
     app.botMargin = 300
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
@@ -34,7 +34,7 @@ def appStarted(app):
     findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-    trainNN(app)
+    #trainNN(app)
 
 def makePrediction(app):    
     writeSample(app)
@@ -87,12 +87,12 @@ def sizeChanged(app):
 
 def mousePressed(app, event):
     if pointInGrid(app,event.x,event.y):
-        app.selCol, app.selRow = getGridCoords(app,event.x,event.y)
+        app.selX, app.selY = getGridCoords(app,event.x,event.y)
         if app.markerActive:
-            index = getIndex(app.selCol,app.selRow)
+            index = getIndex(app.selX,app.selY)
             app.pixels[index]= 250 # sets pixel to an arbitrary "light" value
         if app.eraserActive:
-            index = getIndex(app.selCol,app.selRow)
+            index = getIndex(app.selX,app.selY)
             app.pixels[index]= 2 # sets pixel to an arbitrary "light" value
     elif .18*app.width<event.x<.27*app.width and .028*app.height<event.y<.071*app.height:
         makePrediction(app)
@@ -154,17 +154,17 @@ def mouseDragged(app, event):
 def getGridCoords(app,x,y): #view to model
     if not pointInGrid(app,x,y):
         return (-1,-1)
-    col = int((x-app.margin)/app.pixW)
-    row = int((y-app.margin)/app.pixH)
-    return col, row
+    x = int((x-app.margin)/app.pixW)
+    y = int((y-app.margin)/app.pixH)
+    return x, y
     
-def getCellUpperLeft(app,row, col):#model to view
-    x1 = app.margin + col*app.pixW
-    y1 = app.margin + row*app.pixH
+def getCellUpperLeft(app,y, x):#model to view
+    x1 = app.margin + x*app.pixW
+    y1 = app.margin + y*app.pixH
     return(x1,y1)
 
 def drawSelection(app, canvas):
-    (x1,y1) = getCellUpperLeft(app,app.selRow, app.selCol)
+    (x1,y1) = getCellUpperLeft(app,app.selY, app.selX)
     canvas.create_rectangle(x1,y1,x1+app.pixW,y1+app.pixH, width= 3, fill = None)
 
 def keyPressed(app, event):
@@ -210,21 +210,21 @@ def getIndex(x,y, width=28):
 def getStartPoint(app): #returns starting point to trace
     minDist = 10**10
     if app.ends != []:
-        for (col,row) in app.ends:
+        for (x,y) in app.ends:
             #print("tempAppEnds: ", app.ends)
-            dist = math.sqrt(row**2 + col**2)
+            dist = math.sqrt(y**2 + x**2)
             if dist < minDist:
                 minDist = dist
-                (startX, startY) = (col,row)
+                (startX, startY) = (x,y)
         app.ends.remove((startX,startY))
         return (startX, startY)
     #if no end, start with the bend closest to 0,0
     elif app.bends != []:
-        for (col, row) in app.bends:
-            dist = math.sqrt(row**2 + col**2)
+        for (x, y) in app.bends:
+            dist = math.sqrt(y**2 + x**2)
             if dist < minDist:
                 minDist = dist
-                (startX, startY) = (col,row)
+                (startX, startY) = (x,y)
         app.bends.remove((startX,startY))#TODO mistake- this removes each end in order (or should anyway)
         return (startX, startY)
     else: return (None, None)
@@ -236,6 +236,7 @@ def getTrace(app):
     app.trace.append((startX, startY))
     #connect to farthest contiguous point
     midsList, outlineList = getMidPoints(app)# TODO eliminate all the calls to gMP, put midslist etc in app...
+    if len(midsList) < 2: return
     while len(midsList) > 1:
         traceIndex = app.trace.index((startX,startY))
         #print ("ML prior: ", midsList)
@@ -291,7 +292,7 @@ def getTrace(app):
 #closing the loop on closed chars
 #TODO: need a test to determine if char otherwise closed, see 3/7.png
 def closeTheLoop(app):
-    if "gap" not in app.trace:
+    if "gap" not in app.trace and len(app.trace) >1:
         startX, startY = app.trace[0]
         endX, endY = app.trace[-1]
         threshold = 1.6
@@ -354,13 +355,13 @@ def isConnected(app,mid1,mid2): #makes sure no gap between midpoints
     if abs(x1-x2)==1 and abs(y1-y2)==1: #by definition so to speak
         return True
     elif x1 == x2:
-        for row in range(min(y1,y2),max(y1,y2)+1):
-            if app.pixels[getIndex(x1,row)] < app.threshold: #gap found
+        for y in range(min(y1,y2),max(y1,y2)+1):
+            if app.pixels[getIndex(x1,y)] < app.threshold: #gap found
                 return False
         return True
     elif y1 == y2:
-        for col in range(min(x1,x2),max(x1,x2)+1):
-            if app.pixels[getIndex(col, y1)] < app.threshold: #gap found
+        for x in range(min(x1,x2),max(x1,x2)+1):
+            if app.pixels[getIndex(x, y1)] < app.threshold: #gap found
                 return False
         return True
     else:
@@ -469,7 +470,7 @@ def drawButtons(app, canvas):
 def drawDisplayControls(app,canvas):
     bH = 30 #button half height
     cW = app.width//4 #nominal console column width
-    rH = app.height*.03 #nominal console row height
+    rH = app.height*.03 #nominal console y height
     tCX = app.width//2 + 115 # cen location of viz tools title text
     tCY = app.height*.83 # cen location of viz tools title text
     r = 11 #radio button radius
@@ -497,7 +498,7 @@ def drawDisplayControls(app,canvas):
 def drawDisplayControls2(app, canvas):
     bH = 30 #button half height
     cW = app.width//4 #nominal console column width
-    rH = app.height*.03 #nominal console row height
+    rH = app.height*.03 #nominal console y height
     tCX = app.width//2 + 115 # cen location of viz tools title text
     tCY = app.height*.83 # cen location of viz tools title text
     r = 11 #radio button radius
@@ -545,7 +546,7 @@ def drawGrid(app, canvas):
         canvas.create_line(x,app.margin,x,bEdge, width = 2)
     for y in range(app.margin,rEdge, app.pixH*5):
         canvas.create_line(app.margin,y,bEdge,y, width = 2)
-    canvas.create_text(100,700, text =f'Selected Coord(x,y): {app.selCol}, {app.selRow}')
+    canvas.create_text(100,700, text =f'Selected Coord(x,y): {app.selX}, {app.selY}')
 
 def drawOutline(app, canvas):
     canvas.create_text(30,app.height*.975, text=f'Threshold: {app.threshold}    {app.file}', font='Times 11', anchor = 'w')
@@ -566,7 +567,7 @@ def drawContiguousConnections(app, canvas):
                 (x1,y1) = app.offset + x1*20, app.offset + y1*20 
                 (x2,y2) = contMidEnd[i]
                 (x2,y2) = app.offset + x2*20, app.offset + y2*20
-                (xs,ys) = getCellUpperLeft(app,app.selRow, app.selCol)
+                (xs,ys) = getCellUpperLeft(app,app.selY, app.selX)
                 (xs,ys) = (xs+10,ys+10)
                 if app.contPath == "all": 
                     canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
@@ -575,17 +576,17 @@ def drawContiguousConnections(app, canvas):
                 
 def drawEnds(app, canvas):
     if app.endsBendsOn:
-        for (col,row) in app.ends: # TODO fix this to match row, col convention
-            x = app.offset + col*app.pixW
-            y = app.offset + row*app.pixH
+        for (x,y) in app.ends: # TODO fix this to match y, x convention
+            x = app.offset + x*app.pixW
+            y = app.offset + y*app.pixH
             r = 15
             canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "green", fill = None)
 
-def drawBends(app, canvas): # TODO fix this to match row, col convention
+def drawBends(app, canvas): # TODO fix this to match y, x convention
     if app.endsBendsOn:
-        for (col,row) in app.bends:
-            x = app.offset + col*app.pixW
-            y = app.offset + row*app.pixH
+        for (x,y) in app.bends:
+            x = app.offset + x*app.pixW
+            y = app.offset + y*app.pixH
             r = 15
             canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "blue", fill = None)
 

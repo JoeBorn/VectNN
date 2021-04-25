@@ -51,6 +51,10 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
   ds = ds.prefetch(batch_size)
   return ds
 
+
+#************************************************
+# Evaluating a new sample
+#************************************************
 def predictSample(app):
   csv_samples = 'sample.csv'
   dataframe_samples = pd.read_csv(csv_samples) 
@@ -62,6 +66,11 @@ def predictSample(app):
   print(predictions[0])
   return predictions[0]
 
+def writeSample(app):
+  with open('sample.csv', newline='',mode='w') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+                traceWriter.writerow([i for i in range(26)]) #headers
+                traceWriter.writerow(traceConverter(app))
 
 '''
 #(sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 10)
@@ -69,19 +78,9 @@ csv_samples = 'C:/GitHub/VectNN/mnist_1_samples.csv'
 dataframe_samples = pd.read_csv(csv_samples) 
 dataframe_samples = dataframe_samples.fillna(value=0)
 '''
-
-#************************************************
-# Evaluating a new sample
-#************************************************
-def writeSample(app):
-  with open('sample.csv', newline='',mode='w') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
-                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
-                traceWriter.writerow([i for i in range(26)]) #headers
-                traceWriter.writerow(traceConverter(app))
-
 def openFile(app):
     with open('temp', newline='',mode='w') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
-                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+                traceWriter = csv.writer(csvfile, delimiter=',')
                 traceWriter.writerow([i for i in range(25)]) #headers
     for i in range(10):
         #path = f'C:/mnist/mnist_all_files/testing/{i}/'
@@ -89,15 +88,14 @@ def openFile(app):
         for filename in glob.glob(os.path.join(path, '*.png')):
             with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
                 app.img = Image.open(filename)
-                #print(filename)
                 try:
                     getMidPoints(app, app.img)
                     findEnds(app)
                     getTrace(app)
                 except: 
                     print(filename)               
-            with open('mnist_1_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
-                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+            with open('mnist_1_training.csv', newline='',mode='a') as csvfile: 
+                traceWriter = csv.writer(csvfile, delimiter=',')
                 traceWriter.writerow(traceConverter(app,i))
     print(f"done! no {i}")
 
