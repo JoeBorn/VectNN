@@ -2,24 +2,11 @@
 all rights reserved '''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
-#from vnn_TF import *
+from vnn_TF import *
 import random, string, math, time
 import PIL, copy
 from PIL import Image 
 import decimal
-
-
-
-def openFile(app):
-    #https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
-    Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-    app.file = filedialog.askopenfilename() # show an "Open" dialog box and return the path to the selected file
-    app.img = Image.open(app.file)
-    app.pixels = list(app.img.getdata())
-    findEnds(app) #TODO 
-    getMidPoints(app)
-    getTrace(app)
-    
 
 #TODO: grid screws up when canvas stretched
 #file = 'C:/GitHub/VectNN/JB_4.bmp'
@@ -42,17 +29,20 @@ def appStarted(app):
     app.contPath = "one"
     app.markerActive = False
     app.eraserActive = False
+    app.predictionMade = False
     variables(app)
     findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-    
-'''    trainNN(app)
+    trainNN(app)
+
+def makePrediction(app):    
     writeSample(app)
     prediction = predictSample(app).tolist()
-    print(max(prediction))
-    print(prediction.index(max(prediction)))
-'''
+    app.prediction = prediction
+    app.predNum = prediction.index(max(prediction))
+    app.confidence = int(max(prediction)*100)
+    app.predictionMade = True
 
 def variables(app):
     app.pixW = (app.width - 2*app.margin)//app.cols
@@ -67,6 +57,19 @@ def roundHalfUp(d):
     # See other rounding options here:
     # https://docs.python.org/3/library/decimal.html#rounding-modes
     return int(decimal.Decimal(d).to_integral_value(rounding=rounding))
+
+def openFile(app):
+    #https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
+    Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+    app.file = filedialog.askopenfilename() # show an "Open" dialog box and return the path to the selected file
+    app.img = Image.open(app.file)
+    app.pixels = list(app.img.getdata())
+    findEnds(app) #TODO 
+    getMidPoints(app)
+    getTrace(app)
+    app.predictionMade = False
+
+
 
 #grid details derived from: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
 def pointInGrid(app,x,y):
@@ -85,6 +88,8 @@ def mousePressed(app, event):
         if app.eraserActive:
             index = getIndex(app.selCol,app.selRow)
             app.pixels[index]= 2 # sets pixel to an arbitrary "light" value
+    elif .18*app.width<event.x<.27*app.width and .028*app.height<event.y<.071*app.height:
+        makePrediction(app)
     elif .55*app.width<event.x<.76*app.width and .73*app.height<event.y<.78*app.height:
         drawingButtonPressed(app, event.x,event.y)
     elif .15*app.width<event.x<.25*app.width and .75*app.height<event.y<.88*app.height:
@@ -596,12 +601,12 @@ def drawPrediction(app, canvas):
     canvas.create_rectangle(app.width*.18,app.height*.071,app.width*.27,app.height*.028)
     canvas.create_text(app.width*.225,app.height*.05, text= "Predict")
     canvas.create_text(app.width*.35, app.height*.01,text= "Prediction:", anchor = "w")
-    testList = [0.0001, 0.8, 0.2,0.0001,0.02, 0.02, 0.02, 0.02, 0.02, 0.01]
     if app.predictionMade:
-        canvas.create_rectangle(app.width//2-5,app.height*.071,app.width//2 +200,app.height*.028)
-        for i in range(len(testList)):
-            canvas.create_rectangle(app.width//2 +i*20,app.height*.07,app.width//2 +i*20+10, app.height*.07-testList[i]*40, fill="red")
-            canvas.create_text(app.width//2+i*20 +5, app.height*.08,text= f"{i}")
+        canvas.create_text(app.width*.4,app.height*.05, text=f"{app.predNum} ({app.confidence} % conf.)", font ="times 18 bold")
+        canvas.create_rectangle(app.width*.55,app.height*.071,app.width*.81,app.height*.028)
+        for i in range(len(app.prediction)):
+            canvas.create_rectangle(app.width*.56 +i*20,app.height*.07,app.width*.56 +i*20+10, app.height*.07-app.prediction[i]*40, fill="red")
+            canvas.create_text(app.width*.56+i*20 +5, app.height*.08,text= f"{i}")
 
 def timerFired(app):
     variables(app)
