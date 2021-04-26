@@ -2,18 +2,17 @@
 all rights reserved '''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
-#from vnn_TF import *
+from vnn_TF import *
 import random, string, math, time
 import PIL, copy
 from PIL import Image 
 import decimal
 
 #TODO: grid screws up when canvas stretched
-#file = 'C:/GitHub/VectNN/JB_4.bmp'
 
 def appStarted(app):
-    app.rows = 28 # a y and x for each pixel 
-    app.cols = 28 # a y and x for each pixel 
+    app.picHeight = 28 # a y and x for each pixel 
+    app.picWidth = 28 # a y and x for each pixel 
     app.selX = 0
     app.selY = 0
     app.margin = 100
@@ -34,7 +33,7 @@ def appStarted(app):
     findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-    #trainNN(app)
+    trainNN(app)
 
 def makePrediction(app):    
     writeSample(app)
@@ -45,8 +44,8 @@ def makePrediction(app):
     app.predictionMade = True
 
 def variables(app):
-    app.pixW = (app.width - 2*app.margin)//app.cols
-    app.pixH = (app.height - app.margin -app.botMargin)//app.rows
+    app.pixW = (app.width - 2*app.margin)//app.picWidth
+    app.pixH = (app.height - app.margin -app.botMargin)//app.picHeight
     app.threshold = 120 # lightness threshold to determine edges of chars
     #0 is black, 255 is white, on pngs, letters are light on black background
 
@@ -78,9 +77,10 @@ def saveFile(app):
     savedImg.save(app.newFile)
 
 #grid details derived from: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
+#outer pixels are not part of the mnist dbase, so they are excluded here too
 def pointInGrid(app,x,y):
-    return ((app.margin <= x <= app.width - app.margin) and \
-        (app.margin <= y <=app.height -app.botMargin))
+    return ((app.margin + 2*app.pixW <= x <= app.width - app.margin - 2*app.pixW) and \
+        (app.margin + 2*app.pixH <= y <=app.height -app.botMargin - 2*app.pixH))
 
 def sizeChanged(app):
     variables(app)
@@ -103,13 +103,17 @@ def mousePressed(app, event):
     elif .37*app.width<event.x<.9*app.width and .88*app.height<event.y<.96*app.height:
         visualizationButtonPressed(app,event.x,event.y)
 
-
 def drawingButtonPressed(app,x,y):
+    #clear button
     if .55*app.width<x<.60*app.width and .73*app.height<y<.78*app.height:
-        appStarted(app)
+        app.pixels = [2 for i in range(784)]
+        app.trace = []
+        app.ends, app.bends = [], []
+    #erase button
     if .63*app.width<x<.67*app.width and .73*app.height<y<.78*app.height:
         app.eraserActive = not app.eraserActive
         app.markerActive = False
+    #marker button
     if .71*app.width<x<.75*app.width and .73*app.height<y<.78*app.height:
         app.markerActive = not app.markerActive
         app.eraserActive = False
@@ -202,9 +206,9 @@ def getMidPoints(app): #finds the midpoints, taking horizontal slices
     return midsList,outlineList
 
 #gets index out of a flattened list given x and y coords of the image
-#list stores pixels by rows, starting with top
+#list stores pixels by picHeight, starting with top
 def getIndex(x,y, width=28):
-    i = (y)*width + (x)#TODO y-1, x-1 fixed an out of index error in the parser, but seriously screws things up
+    i = (y)*width + (x)
     return i
 
 def getStartPoint(app): #returns starting point to trace
@@ -229,17 +233,17 @@ def getStartPoint(app): #returns starting point to trace
         return (startX, startY)
     else: return (None, None)
 
+#This function produces the trace list that attempts to trace the character
 def getTrace(app):
     app.trace = []
     #start with the end closest to 0,0
     (startX, startY) = getStartPoint(app)
     app.trace.append((startX, startY))
     #connect to farthest contiguous point
-    midsList, outlineList = getMidPoints(app)# TODO eliminate all the calls to gMP, put midslist etc in app...
+    midsList, outlineList = getMidPoints(app)
     if len(midsList) < 2: return
     while len(midsList) > 1:
         traceIndex = app.trace.index((startX,startY))
-        #print ("ML prior: ", midsList)
         maxDistance = 0
         for index in range(len(midsList)):
             if areContiguous(app,(startX, startY),midsList[index]):
@@ -252,30 +256,10 @@ def getTrace(app):
                 if dist > maxDistance:
                     maxDistance = dist
                     (endX, endY) = (x,y)
-                    #print("endX,endY", x,y)
-        if maxDistance >= 1: app.trace.append((endX,endY))
-        if (startX,startY) in midsList: midsList.remove((startX,startY))
-        index = 0
-        #maxDist is dist between this x and the "prior" X.  Whereas lastDist
-        #is the distance between the most recent two trace points
-        lastDist = math.sqrt((startX-endX)**2+(startY-endY)**2)
-        while index < (len(midsList)): #removes intermediate points from ML
-            (x,y) = midsList[index]
-            if areContiguous(app,(startX, startY),(x,y)) and \
-                areContiguous(app, (endX,endY), (x,y)):
-                dist = math.sqrt((startX - x)**2 +(startY - y)**2)
-                if dist <= lastDist:
-                    midsList.pop(index)
-                    if (x,y) in app.ends: app.ends.remove((x,y))
-                    if (x,y) in app.bends: app.bends.remove((x,y))
-                else: index += 1
-            elif min(startX,endX) <= x <= max(startX,endX) and \
-            min(startY,endY) <= y <= max(startY,endY) and isConnected(app,(endX,endY),(x,y)):
-                    if (x,y) == (11,11): print("x,y,endX,endY: ", x,y,endX,endY)
-                    midsList.pop(index)    
-            else: index += 1
-        if (startX,startY) != (endX,endY): # it found a new connection point
-            (startX,startY) = (endX,endY)
+        if maxDistance >= 1: 
+            app.trace.append((endX,endY))
+            if (startX,startY) != (endX,endY): # it found a new connection point
+                (startX,startY) = (endX,endY)
         else: #failing that, make sure all ends/bends are connected
             (startX,startY)= getStartPoint(app)
             if (startX,startY) == (None,None): break #if ends/bends gone,we're done
@@ -283,11 +267,35 @@ def getTrace(app):
             else:
                 app.trace.append("gap") 
                 app.trace.append((startX, startY))
-        if (endX,endY) in midsList: midsList.remove((endX,endY))
-        #print("app.trace", app.trace)
-        #print("ML after: ",midsList)
-        #input("press any key")
+        midsList = removeIntermediatePoints(app,midsList)
     closeTheLoop(app)
+
+def removeIntermediatePoints(app,midsList):
+    #maxDist is dist between this x and the "prior" X.  Whereas lastDist
+    #is the distance between the most recent two trace points
+    if len(app.trace) <2: return
+    if app.trace[-2] == "gap" or app.trace[-1] == "gap": return midsList
+    startX,startY = app.trace[-2]
+    endX,endY = app.trace[-1]
+    distToPrior = distance(app.trace[-1],app.trace[-2])
+    index = 0
+    if (startX,startY) in midsList: midsList.remove((startX,startY))
+    if (endX,endY) in midsList: midsList.remove((endX,endY))
+    while index < (len(midsList)): #removes intermediate points from ML
+        (x,y) = midsList[index]
+        if areContiguous(app,(app.trace[-1]),(x,y)) and \
+            areContiguous(app, (app.trace[-2]), (x,y)):
+            dist = distance(app.trace[-2],(x,y))
+            if dist <= distToPrior:
+                midsList.pop(index)
+                if (x,y) in app.ends: app.ends.remove((x,y))
+                if (x,y) in app.bends: app.bends.remove((x,y))
+            else: index += 1
+        elif min(startX,endX) <= x <= max(startX,endX) and \
+        min(startY,endY) <= y <= max(startY,endY) and isConnected(app,(endX,endY),(x,y)):
+                midsList.pop(index)    
+        else: index += 1
+    return midsList
 
 #closing the loop on closed chars
 #TODO: need a test to determine if char otherwise closed, see 3/7.png
@@ -316,12 +324,6 @@ def distance(coord1,coord2):
     (x1,y1) = coord1
     (x2,y2) = coord2 
     return math.sqrt((x2-x1)**2+(y2-y1)**2)
-
-
-    # delete all midpoints "passed"
-    #"passed" means closer to the from mid point and contiguous to both
-    #from chosen point choose farthest contiguous point (ignoring all skipped points)
-    #done when no midpoints are left (either because they were chosen or skipped)
 
 
 #takes original "image" list and two midpoints and returns if they are contiguous
@@ -365,7 +367,6 @@ def isConnected(app,mid1,mid2): #makes sure no gap between midpoints
                 return False
         return True
     else:
-        #print("rec coords: ", x1,y1,x2,y2)
         if x2 > x1: dx = 1
         elif x1 > x2: dx = -1
         else: dx = 0
@@ -379,7 +380,8 @@ def isConnected(app,mid1,mid2): #makes sure no gap between midpoints
             return True
         else:
             return False    
-
+#this function produces pairs of contigous midpoints, ultimately used
+# in getTrace
 def contiguousPairs(app,midsList):
     contMidStart = list()
     contMidEnd = list()
@@ -410,7 +412,7 @@ def findEnds(app):
     (contMidStart, contMidEnd) = contiguousPairs(app,midsList)
     app.ends = []
     app.bends = []
-    i = 1 #TODO missing the last midpoint? first, it's missing something
+    i = 1 
     allRorL = True # all contMidEnds are on one side of contMidStart
     allUorD = True # all contMidEnds are above or all are below contMidStart
     allConnected = True
@@ -438,9 +440,6 @@ def findEnds(app):
                 # ie it's not an end, just a side of a curve, a "bend"
             i += 1
         
-    #print ("app.ends: ", app.ends)
-
-
 def drawButtons(app, canvas):
     bW = 40 #button half width
     bH = 25 #button half height
@@ -576,13 +575,13 @@ def drawContiguousConnections(app, canvas):
                 
 def drawEnds(app, canvas):
     if app.endsBendsOn:
-        for (x,y) in app.ends: # TODO fix this to match y, x convention
+        for (x,y) in app.ends: 
             x = app.offset + x*app.pixW
             y = app.offset + y*app.pixH
             r = 15
             canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "green", fill = None)
 
-def drawBends(app, canvas): # TODO fix this to match y, x convention
+def drawBends(app, canvas): 
     if app.endsBendsOn:
         for (x,y) in app.bends:
             x = app.offset + x*app.pixW
@@ -590,10 +589,10 @@ def drawBends(app, canvas): # TODO fix this to match y, x convention
             r = 15
             canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "blue", fill = None)
 
-
 def drawTrace(app, canvas):
-    if app.traceOn  and app.trace[0] != (None,None):
+    if app.traceOn  and app.trace != []:
         (startX,startY) = app.trace[0]
+        if startX == None or startY == None: return #new drawing, no trace yet
         startX,startY =app.offset + startX*app.pixW, app.offset + startY*app.pixH
         canvas.create_oval(startX-5,startY-5,startX+5,startY+5, fill="red")
         for i in range(1,len(app.trace)):
@@ -617,10 +616,11 @@ def drawPrediction(app, canvas):
 
 def timerFired(app):
     variables(app)
-    findEnds(app) #TODO hard to imagine this should be here
-    getTrace(app) #TODO put these in the right places
-    findEnds(app)
-
+    ML, OL = getMidPoints(app)
+    if len(ML) > 1: # don't start drawing until there's something to draw
+        findEnds(app) #TODO hard to imagine this should be here
+        getTrace(app) #TODO put these in the right places
+        #findEnds(app)
 
 def drawCharacter(app, canvas):
     drawOutline(app, canvas)
@@ -631,7 +631,6 @@ def drawCharacter(app, canvas):
     drawTrace(app, canvas)
     drawContiguousConnections(app, canvas)
 
-
 def redrawAll(app, canvas):
     drawGrid(app,canvas)
     drawButtons(app,canvas)
@@ -640,7 +639,6 @@ def redrawAll(app, canvas):
     drawCharacter(app,canvas)
     drawPrediction(app,canvas)
     
-
 def main():
     #cs112_s21_week4_linter.lint()
     runApp(width=762, height=962)

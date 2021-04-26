@@ -109,7 +109,6 @@ def traceConverter(app, i=0):
             result.append(y)
     return result
 
-
 '''
 test_loss, test_acc = model.evaluate(sample_ds, verbose=2)
 
