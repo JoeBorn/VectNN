@@ -3,12 +3,53 @@ all rights reserved '''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
 from vnn_TF import *
-import random, string, math, time
-import PIL, copy
+import math
 from PIL import Image 
 import decimal
+import csv
+import glob
 
 #TODO: grid screws up when canvas stretched
+#creates the training and testing csv files, used manually only when there's a change in trace, etc.
+def createCSVFile(app):
+    with open('mnist_1_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+                traceWriter.writerow([i for i in range(36)]) #headers
+    for i in range(10):
+        #path = f'C:/mnist/mnist_all_files/testing/{i}/'
+        path = f'C:/mnist/mnist_all_files/training/{i}/'
+        for filename in glob.glob(os.path.join(path, '*.png')):
+            with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
+                app.img = Image.open(filename)
+                app.pixels = list(app.img.getdata())
+                #print(filename)
+                try:
+                    getMidPoints(app)
+                    findEnds(app)
+                    getTrace(app)
+                    with open('mnist_1_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+                        traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+                        traceWriter.writerow(traceConverter(app,i))
+                except: 
+                    print(filename)          
+    print(f"done! no {i}")
+
+def traceConverter(app, i=0):
+    hasGap = False
+    result = [i] + [0]*25
+    for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
+        if app.trace[i] != "gap":
+            if hasGap == False:
+                (x,y) = app.trace[i]
+                result[2*i+1] =x
+                result[2*i+2] =y 
+            else: #new segment will start at index 25, proving a fixed point to NN
+                (x,y) = app.trace[i]
+                result.append(x)
+                result.append(y)
+        else: 
+            hasGap = True
+    return result[:36]
 
 def appStarted(app):
     app.picHeight = 28 # a y and x for each pixel 
@@ -34,6 +75,7 @@ def appStarted(app):
     getMidPoints(app)
     getTrace(app)
     trainNN(app)
+    #createCSVFile(app)
 
 def makePrediction(app):    
     writeSample(app)
@@ -169,13 +211,7 @@ def getCellUpperLeft(app,y, x):#model to view
 
 def drawSelection(app, canvas):
     (x1,y1) = getCellUpperLeft(app,app.selY, app.selX)
-    canvas.create_rectangle(x1,y1,x1+app.pixW,y1+app.pixH, width= 3, fill = None)
-
-def keyPressed(app, event):
-    if event.key.lower() == 'space':
-        app.contigLinesVisible = not app.contigLinesVisible
-    if event.key.lower() == 'o':
-        app.oneContigVis = not app.oneContigVis        
+    canvas.create_rectangle(x1,y1,x1+app.pixW,y1+app.pixH, width= 3, fill = None)       
 
 def getMidPoints(app): #finds the midpoints, taking horizontal slices
     #pixels = list(app.img.getdata()) # returns one long flattened list: row1, row2, etc
@@ -236,6 +272,7 @@ def getStartPoint(app): #returns starting point to trace
 #This function produces the trace list that attempts to trace the character
 def getTrace(app):
     app.trace = []
+    outOfOrder = False
     #start with the end closest to 0,0
     (startX, startY) = getStartPoint(app)
     app.trace.append((startX, startY))
@@ -265,10 +302,17 @@ def getTrace(app):
             if (startX,startY) == (None,None): break #if ends/bends gone,we're done
             #TODO: sometimes leaves ends unconnected, see notes on 4/336.png
             else:
-                app.trace.append("gap") 
+                #trace should have start point in upper left
+                if distance(app.trace[0],(0,0)) > distance((endX,endY),(0,0)):
+                    app.trace.reverse() 
+                app.trace.append("gap")
+                if distance(app.trace[0],(0,0)) > distance((startX,startY),(0,0)):
+                    outOfOrder = True
                 app.trace.append((startX, startY))
         midsList = removeIntermediatePoints(app,midsList)
     closeTheLoop(app)
+    reorderIfNeeded(app, outOfOrder)
+
 
 def removeIntermediatePoints(app,midsList):
     #maxDist is dist between this x and the "prior" X.  Whereas lastDist
@@ -319,6 +363,23 @@ def closeTheLoop(app):
             if minDist < distance((startX,startY),(endX,endY))*threshold:
                 app.trace.append((xConnection,yConnection))
                 app.trace.append(app.trace[0])
+
+#if start point improperly placed, reverse list
+def reorderIfNeeded(app, outOfOrder):
+    if not outOfOrder:
+        if distance(app.trace[-1],(0,0)) < distance(app.trace[0],(0,0)):
+            app.trace.reverse()
+    '''
+    else: #since oOO, have to find upper left point
+        minDist = distance(app.trace[0],(0,0))
+        for i in range(1,len(app.trace)):
+            if app.trace[i] == "gap":
+                dist = distance(app.trace[i+1],(0,0))
+                if dist < minDist:
+                    minDist = dist
+                    minI = i+1
+        app.trace = app.trace[minI:] + app.trace[:minI]
+    '''
 
 def distance(coord1,coord2):
     (x1,y1) = coord1

@@ -37,7 +37,7 @@ def trainNN(app):
   app.model.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
-  app.model.fit(train_ds, epochs=20, validation_data=test_ds)
+  app.model.fit(train_ds, epochs=30, validation_data=test_ds)
 
 # A utility method to create a tf.data dataset from a Pandas Dataframe, 
 def df_to_dataset(dataframe, shuffle=True, batch_size=32):
@@ -59,7 +59,7 @@ def predictSample(app):
   csv_samples = 'sample.csv'
   dataframe_samples = pd.read_csv(csv_samples) 
   dataframe_samples = dataframe_samples.fillna(value=0)
-  (sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 10)
+  (sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 1)
   print("Raw SoftMax Output:")
   predictions = app.model.predict(sample_ds)
   print(type(predictions[0]))
@@ -69,7 +69,7 @@ def predictSample(app):
 def writeSample(app):
   with open('sample.csv', newline='',mode='w') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
                 traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
-                traceWriter.writerow([i for i in range(26)]) #headers
+                traceWriter.writerow([i for i in range(36)]) #headers
                 traceWriter.writerow(traceConverter(app))
 
 '''
@@ -77,11 +77,11 @@ def writeSample(app):
 csv_samples = 'C:/GitHub/VectNN/mnist_1_samples.csv'
 dataframe_samples = pd.read_csv(csv_samples) 
 dataframe_samples = dataframe_samples.fillna(value=0)
-'''
+
 def openFile(app):
     with open('temp', newline='',mode='w') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
                 traceWriter = csv.writer(csvfile, delimiter=',')
-                traceWriter.writerow([i for i in range(25)]) #headers
+                traceWriter.writerow([i for i in range(36)]) #headers
     for i in range(10):
         #path = f'C:/mnist/mnist_all_files/testing/{i}/'
         path = f'C:/mnist/mnist_all_files/training/{i}/'
@@ -98,16 +98,24 @@ def openFile(app):
                 traceWriter = csv.writer(csvfile, delimiter=',')
                 traceWriter.writerow(traceConverter(app,i))
     print(f"done! no {i}")
-
+'''
 
 def traceConverter(app, i=0):
-    result = [i]
-    for item in app.trace:
-        if item != "gap":
-            (x,y) = item
-            result.append(x)
-            result.append(y)
-    return result
+    hasGap = False
+    result = [i] + [0]*25
+    for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
+        if app.trace[i] != "gap":
+            if hasGap == False:
+                (x,y) = app.trace[i]
+                result[2*i+1] =x
+                result[2*i+2] =y 
+            else: #new segment will start at index 25, proving a fixed point to NN
+                (x,y) = app.trace[i]
+                result.append(x)
+                result.append(y)
+        else: 
+            hasGap = True
+    return result[:36]
 
 '''
 test_loss, test_acc = model.evaluate(sample_ds, verbose=2)
