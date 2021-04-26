@@ -9,6 +9,7 @@ import decimal
 import csv
 import glob
 
+#theta based branch
 
 #TODO: grid screws up when canvas stretched
 #creates the training and testing csv files, used manually only when there's a change in trace, etc.
