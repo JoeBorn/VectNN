@@ -60,6 +60,7 @@ def appStarted(app):
     app.selY = 0
     app.margin = 100
     app.botMargin = 300
+    app.mouseMovedDelay = 10
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
     app.file = 'C:/mnist/mnist_all_files/training/8/17.png'  
     app.img = Image.open(app.file)
@@ -72,11 +73,12 @@ def appStarted(app):
     app.markerActive = False
     app.eraserActive = False
     app.predictionMade = False
+    app.imageDisplay = "original"
     variables(app)
     findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-    trainNN(app)
+    #trainNN(app)
     #createCSVFile(app)
 
 def makePrediction(app):    
@@ -129,12 +131,12 @@ def pointInGrid(app,x,y):
 def sizeChanged(app):
     variables(app)
 
-def mousePressed(app, event):
+def mousePressed(app, event):  
     if pointInGrid(app,event.x,event.y):
         app.selX, app.selY = getGridCoords(app,event.x,event.y)
         if app.markerActive:
             index = getIndex(app.selX,app.selY)
-            app.pixels[index]= 250 # sets pixel to an arbitrary "light" value
+            app.pixels[index]= 250 # sets pixel to an arbitrary "dark" value
         if app.eraserActive:
             index = getIndex(app.selX,app.selY)
             app.pixels[index]= 2 # sets pixel to an arbitrary "light" value
@@ -142,9 +144,9 @@ def mousePressed(app, event):
         makePrediction(app)
     elif .55*app.width<event.x<.76*app.width and .73*app.height<event.y<.78*app.height:
         drawingButtonPressed(app, event.x,event.y)
-    elif .15*app.width<event.x<.25*app.width and .75*app.height<event.y<.88*app.height:
+    elif .05*app.width<event.x<.15*app.width and .75*app.height<event.y<.88*app.height:
         fileButtonPressed(app,event.x,event.y)
-    elif .37*app.width<event.x<.9*app.width and .88*app.height<event.y<.96*app.height:
+    elif .19*app.width<event.x<.9*app.width and .88*app.height<event.y<.96*app.height:
         visualizationButtonPressed(app,event.x,event.y)
 
 def drawingButtonPressed(app,x,y):
@@ -163,10 +165,12 @@ def drawingButtonPressed(app,x,y):
         app.eraserActive = False
 
 def fileButtonPressed(app,x,y):
-    if .15*app.width<x<.25*app.width and .76*app.height<y<.80*app.height:
-        saveFile(app)
-    if .15*app.width<x<.25*app.width and .83*app.height<y<.87*app.height:
-        openFile(app)
+    if .05*app.width<x<.15*app.width and .76*app.height<y<.80*app.height:
+        try: saveFile(app)
+        except: return
+    if .05*app.width<x<.15*app.width and .83*app.height<y<.87*app.height:
+        try: openFile(app)
+        except: return
 
 def visualizationButtonPressed(app,x,y):
     r = 11
@@ -187,17 +191,27 @@ def visualizationButtonPressed(app,x,y):
     elif (.89*app.width-x)**2 +(.92*app.height-y)**2 < r**2:
         app.contPath = "one"
     elif (.89*app.width-x)**2 +(.95*app.height-y)**2 < r**2:
-        app.contPath = "off"    
+        app.contPath = "off"
+    elif (.21*app.width-x)**2 +(.89*app.height-y)**2 < r**2:
+        app.imageDisplay = "outline"
+    elif (.21*app.width-x)**2 +(.92*app.height-y)**2 < r**2:
+        app.imageDisplay = "original"    
 
 def mouseDragged(app, event):
     if app.markerActive:
-        x,y = getGridCoords(app,event.x,event.y)
+        x,y = getGridCoords(app,event.x-5,event.y-5)
         index = getIndex(x,y)
         app.pixels[index]= 250 # sets pixel to an arbitrary "light" value
+        x,y = getGridCoords(app,event.x+5,event.y+5)
+        index = getIndex(x,y)
+        app.pixels[index]= 250 
     if app.eraserActive:
-        x,y = getGridCoords(app,event.x,event.y)
+        x,y = getGridCoords(app,event.x-5,event.y-5)
         index = getIndex(x,y)
         app.pixels[index]= 2 # sets pixel to an arbitrary "dark" value
+        x,y = getGridCoords(app,event.x+5,event.y+5)
+        index = getIndex(x,y)
+        app.pixels[index]= 2
 
 def getGridCoords(app,x,y): #view to model
     if not pointInGrid(app,x,y):
@@ -246,8 +260,13 @@ def getMidPoints(app): #finds the midpoints, taking horizontal slices
 #gets index out of a flattened list given x and y coords of the image
 #list stores pixels by picHeight, starting with top
 def getIndex(x,y, width=28):
-    i = (y)*width + (x)
-    return i
+    index = (y)*width + (x)
+    return index
+
+def getCoord(index, width= 28):
+    y = index // width
+    x = index % width
+    return x,y 
 
 def getStartPoint(app): #returns starting point to trace
     minDist = 10**10
@@ -275,8 +294,8 @@ def getStartPoint(app): #returns starting point to trace
 def getTrace(app):
     app.trace = []
     outOfOrder = False
-    #start with the end closest to 0,0
-    (startX, startY) = getStartPoint(app)
+    (startX, startY) = getStartPoint(app)#start with the end closest to 0,0
+    if (startX,startY) == (None,None):return
     app.trace.append((startX, startY))
     #connect to farthest contiguous point
     midsList, outlineList = getMidPoints(app)
@@ -312,9 +331,9 @@ def getTrace(app):
                     outOfOrder = True
                 app.trace.append((startX, startY))
         midsList = removeIntermediatePoints(app,midsList)
-    closeTheLoop(app)
-    reorderIfNeeded(app, outOfOrder)
-
+    if len(app.trace) > 1:
+        closeTheLoop(app)
+        reorderIfNeeded(app, outOfOrder)
 
 def removeIntermediatePoints(app,midsList):
     #maxDist is dist between this x and the "prior" X.  Whereas lastDist
@@ -387,7 +406,6 @@ def distance(coord1,coord2):
     (x1,y1) = coord1
     (x2,y2) = coord2 
     return math.sqrt((x2-x1)**2+(y2-y1)**2)
-
 
 #takes original "image" list and two midpoints and returns if they are contiguous
 # ie if they are candidates to be connected directly by the trace.
@@ -524,16 +542,16 @@ def drawButtons(app, canvas):
     canvas.create_rectangle(dCX+bW+10 , dCY+bH+20, dCX+2*bW-10, dCY+bH+42, fill = "black" )
     canvas.create_polygon(dCX+bW+10 , dCY+bH+18, dCX+2*bW-10,dCY+bH+18,dCX+3*bW//2,dCY+bH+6,fill = "gray", width = 1 )
     #file related buttons
-    canvas.create_rectangle(app.width//5-bW, app.height*.78-bH, app.width//5+bW, app.height*.78+bH )
-    canvas.create_text(app.width//5,app.height*.78, text = "save file")
-    canvas.create_rectangle(app.width//5-bW, app.height*.85-bH, app.width//5+bW, app.height*.85+bH)
-    canvas.create_text(app.width//5,app.height*.85, text = "open file")
+    canvas.create_rectangle(app.width*.1-bW, app.height*.78-bH, app.width*.1+bW, app.height*.78+bH )
+    canvas.create_text(app.width*.1,app.height*.78, text = "save file")
+    canvas.create_rectangle(app.width*.1-bW, app.height*.85-bH, app.width*.1+bW, app.height*.85+bH)
+    canvas.create_text(app.width*.1,app.height*.85, text = "open file")
 
 def drawDisplayControls(app,canvas):
     bH = 30 #button half height
-    cW = app.width//4 #nominal console column width
+    cW = app.width*.25 #nominal console column width
     rH = app.height*.03 #nominal console y height
-    tCX = app.width//2 + 115 # cen location of viz tools title text
+    tCX = app.width*.65 # cen location of viz tools title text
     tCY = app.height*.83 # cen location of viz tools title text
     r = 11 #radio button radius
     r2 = 6 #inner radio button radius
@@ -559,9 +577,9 @@ def drawDisplayControls(app,canvas):
 
 def drawDisplayControls2(app, canvas):
     bH = 30 #button half height
-    cW = app.width//4 #nominal console column width
+    cW = app.width*.25 #nominal console column width
     rH = app.height*.03 #nominal console y height
-    tCX = app.width//2 + 115 # cen location of viz tools title text
+    tCX = app.width*.65 # cen location of viz tools title text
     tCY = app.height*.83 # cen location of viz tools title text
     r = 11 #radio button radius
     r2 = 6 #inner radio button radius
@@ -588,14 +606,34 @@ def drawDisplayControls2(app, canvas):
         canvas.create_oval(tCX+cW-10-r2,tCY+rH+3*bH-r2,tCX+cW-10+r2,tCY+rH+3*bH+r2, fill="black")
     canvas.create_text(tCX+cW+30,tCY+rH+3*bH, text = "Off")
 
+def drawDisplayControls3(app, canvas):
+    bH = 30 #button half height
+    cW = app.width*.25 #nominal console column width
+    rH = app.height*.03 #nominal console y height
+    tCX = app.width*.65 # cen location of viz tools title text
+    tCY = app.height*.83 # cen location of viz tools title text
+    r = 11 #radio button radius
+    r2 = 6 #inner radio button radius
+    canvas.create_text(tCX-1.7*cW,tCY+rH, text = "Image")
+    canvas.create_oval(tCX-1.7*cW-10-r,tCY+rH+bH-r,tCX-1.7*cW-10+r,tCY+rH+bH+r)
+    if app.imageDisplay == "outline": 
+        canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+bH-r2,tCX-1.7*cW-10+r2,tCY+rH+bH+r2, fill= "black")
+    canvas.create_text(tCX-1.7*cW+30,tCY+rH+bH, text = "Outline")
+    canvas.create_oval(tCX-1.7*cW-10-r,tCY+rH+2*bH-r,tCX-1.7*cW-10+r,tCY+rH+2*bH+r)
+    if app.imageDisplay == "original":
+        canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+2*bH-r2,tCX-1.7*cW-10+r2,tCY+rH+2*bH+r2,fill="black")
+    canvas.create_text(tCX-1.7*cW+30,tCY+rH+2*bH, text = "Original")
+
 def drawMidPoints(app, canvas):
+    #from: https://www.cs.cmu.edu/~112/notes/notes-graphics.html#customColors
+    pistachio = rgbString(147, 197, 114)
     if app.midPointsOn:
         midsList, outlineList = getMidPoints(app)
         for coords in midsList:
             ((x,y))=coords
             x=app.margin+app.pixW//4+x*app.pixW
             y=app.margin+app.pixH//4+y*app.pixH
-            canvas.create_rectangle(x,y,x+app.pixW//2,y+app.pixH//2, fill="gray")
+            canvas.create_rectangle(x,y,x+app.pixW//2,y+app.pixH//2, fill=pistachio)
 
 def drawGrid(app, canvas):
     rEdge = app.width - app.margin + 1
@@ -610,14 +648,31 @@ def drawGrid(app, canvas):
         canvas.create_line(app.margin,y,bEdge,y, width = 2)
     canvas.create_text(100,700, text =f'Selected Coord(x,y): {app.selX}, {app.selY}')
 
-def drawOutline(app, canvas):
+def drawImage(app, canvas):
     canvas.create_text(30,app.height*.975, text=f'Threshold: {app.threshold}    {app.file}', font='Times 11', anchor = 'w')
-    midsList, outlineList = getMidPoints(app)
-    for coords in outlineList:
-        ((x,y))=coords
-        x=app.margin+x*app.pixW
-        y=app.margin+y*app.pixH
-        canvas.create_rectangle(x,y,x+app.pixW,y+app.pixH, fill ="lightgray")
+    if app.imageDisplay == "outline":
+        midsList, outlineList = getMidPoints(app)
+        for coords in outlineList:
+            ((x,y))=coords
+            x=app.margin+x*app.pixW
+            y=app.margin+y*app.pixH
+            color = rgbString(app.threshold,app.threshold,min(app.threshold+10,255))
+            canvas.create_rectangle(x,y,x+app.pixW,y+app.pixH, fill=color)
+    else: #app.imageDisplay is "original"
+        for index in range(len(app.pixels)):
+            x,y = getCoord(index)
+            pixelLum = 255- app.pixels[index] #Reverses the gray image from original negative 
+            color = rgbString(pixelLum,pixelLum,min(pixelLum+10,255))
+            x=app.margin+x*app.pixW
+            y=app.margin+y*app.pixH
+            canvas.create_rectangle(x,y,x+app.pixW,y+app.pixH, fill=color)
+        drawGrid(app,canvas)
+
+#https://www.cs.cmu.edu/~112/notes/notes-graphics.html#customColors
+def rgbString(r, g, b):
+    # Don't worry about the :02x part, but for the curious,
+    # it says to use hex (base 16) with two digits.
+    return f'#{r:02x}{g:02x}{b:02x}'
 
 def drawContiguousConnections(app, canvas):
     if app.contPath != "off":
@@ -686,7 +741,7 @@ def timerFired(app):
         #findEnds(app)
 
 def drawCharacter(app, canvas):
-    drawOutline(app, canvas)
+    drawImage(app, canvas)
     drawMidPoints(app, canvas)
     drawEnds(app, canvas)
     drawBends(app, canvas)
@@ -699,6 +754,7 @@ def redrawAll(app, canvas):
     drawButtons(app,canvas)
     drawDisplayControls(app,canvas)
     drawDisplayControls2(app,canvas)
+    drawDisplayControls3(app,canvas)
     drawCharacter(app,canvas)
     drawPrediction(app,canvas)
     
@@ -706,7 +762,6 @@ def main():
     #cs112_s21_week4_linter.lint()
     runApp(width=762, height=962)
     
-
 if __name__ == '__main__':
     main()
 
