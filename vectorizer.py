@@ -2,7 +2,7 @@
 all rights reserved '''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
-#from vnn_TF import *
+from vnn_TF import *
 import math
 from PIL import Image 
 import decimal
