@@ -2,7 +2,7 @@
 all rights reserved '''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
-#from vnn_TF import *
+from vnn_TF import *
 import math
 from PIL import Image 
 import decimal
@@ -52,6 +52,10 @@ def traceConverter(app, i=0):
         else: 
             hasGap = True
     return result[:36]
+
+def traceThetaConverter(app, i=0):
+    result = [i] + [0]*12
+    angle = math.acos(((x2 - x1) * (x3 - x2) + (y2 - y1) * (y3 - y2)) / (math.sqrt((x2 - x1)**2 + (y2 - y1)**2) * math.sqrt((x3 - x2)**2 + (y3 - y2)**2)))
 
 def appStarted(app):
     app.picHeight = 28 # a y and x for each pixel 
