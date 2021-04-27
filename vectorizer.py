@@ -55,7 +55,33 @@ def traceConverter(app, i=0):
 
 def traceThetaConverter(app, i=0):
     result = [i] + [0]*12
-    angle = math.acos(((x2 - x1) * (x3 - x2) + (y2 - y1) * (y3 - y2)) / (math.sqrt((x2 - x1)**2 + (y2 - y1)**2) * math.sqrt((x3 - x2)**2 + (y3 - y2)**2)))
+    
+    hasGap = False
+    for i in range(min(len(app.trace)-2, 12)): #truncates at 25 (w/o gap)
+        if app.trace[i] != "gap":
+            if hasGap == False:
+                angle = app.trace[i]
+                result[2*i+1] =x
+                result[2*i+2] =y 
+            else: #new segment will start at index 25, proving a fixed point to NN
+                (x,y) = app.trace[i]
+                result.append(x)
+                result.append(y)
+        else: 
+            hasGap = True
+    return result[:36]
+
+# returns an "angle" value (between 0 and 1) between two head to tail vectors 
+def getAngle(coord1,coord2,coord3):
+    x1,y1 = coord1
+    x2,y2 = coord2
+    x3,y3 = coord3
+    # angle in radians
+    angle = math.acos(((x2-x1)*(x3-x2)+(y2-y1)*(y3-y2))
+    /(math.sqrt((x2-x1)**2+(y2-y1)**2)
+    *math.sqrt((x3-x2)**2+(y3-y2)**2)))
+    return angle
+
 
 def appStarted(app):
     app.picHeight = 28 # a y and x for each pixel 
