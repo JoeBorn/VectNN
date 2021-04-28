@@ -22,8 +22,8 @@ import csv
 # setting up and training the Neural Net
 #************************************************
 def trainNN(app):
-  csv_file = 'C:/GitHub/VectNN/mnist_1_training.csv'
-  csv_test_file = 'C:/GitHub/VectNN/mnist_1_testing.csv'
+  csv_file = 'C:/GitHub/VectNN/mnist_standard_training.csv'
+  csv_test_file = 'C:/GitHub/VectNN/mnist_standard_testing.csv'
   dataframe = pd.read_csv(csv_file) 
   dataframe_testing = pd.read_csv(csv_test_file)
   dataframe = dataframe.fillna(value=0) #equiv to padding
@@ -37,7 +37,7 @@ def trainNN(app):
   app.model.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
-  app.model.fit(train_ds, epochs=30, validation_data=test_ds)
+  app.model.fit(train_ds, epochs=10, validation_data=test_ds)
 
 # A utility method to create a tf.data dataset from a Pandas Dataframe, 
 def df_to_dataset(dataframe, shuffle=True, batch_size=32):
@@ -70,7 +70,7 @@ def writeSample(app):
   with open('sample.csv', newline='',mode='w') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
                 traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
                 traceWriter.writerow([i for i in range(36)]) #headers
-                traceWriter.writerow(traceConverter(app))
+                traceWriter.writerow(traceConverter2(app))
 
 '''
 #(sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 10)
@@ -117,6 +117,26 @@ def traceConverter(app, i=0):
             hasGap = True
     return result[:36]
 
+def traceConverter2(app, i=0):
+  hasGap = False
+  result = [i] + [0]*26
+  if app.trace[0] == app.trace[-1]: result[1] = 28 #closed feature
+  for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
+      if app.trace[i] != "gap":
+          if hasGap == False:
+              (x,y) = app.trace[i]
+              result[2*i+2] =x
+              result[2*i+3] =y 
+          else: #new segment will start at index 25, proving a fixed point to NN
+              (x,y) = app.trace[i]
+              result.append(x)
+              result.append(y)
+      else: 
+          hasGap = True
+          if app.trace[i-1] == app.trace[0]:
+              result[1] = 28 # add "closed" feature to array
+  return result[:36]
+
 '''
 test_loss, test_acc = model.evaluate(sample_ds, verbose=2)
 
@@ -128,3 +148,50 @@ for i in range(10):
   print("No.",i,predictions[i])
   print()
 '''
+
+
+
+
+
+
+
+
+
+
+
+#trains a standard NN directly from images without trace or any filters from this project
+#https://github.com/lmoroney/dlaicourse/blob/master/Exercises/Exercise%202%20-%20Handwriting%20Recognition/Exercise2-Answer.ipynb
+def standardFCTrain(app):
+  mnist = tf.keras.datasets.mnist
+
+  (x_train, y_train),(x_test, y_test) = mnist.load_data()
+  x_train, x_test = x_train / 255.0, x_test / 255.0
+
+  app.model = tf.keras.models.Sequential([
+    tf.keras.layers.Flatten(input_shape=(28, 28)),
+    tf.keras.layers.Dense(512, activation=tf.nn.relu),
+    tf.keras.layers.Dense(10, activation=tf.nn.softmax)
+  ])
+  app.model.compile(optimizer='adam',
+                loss='sparse_categorical_crossentropy',
+                metrics=['accuracy'])
+
+  app.model.fit(x_train, y_train, epochs=4,validation_data=(x_test,y_test))
+
+def predictStandard(app):
+  csv_samples = 'standardSample.csv'
+  dataframe_samples = pd.read_csv(csv_samples) 
+  dataframe_samples = dataframe_samples.fillna(value=0)
+  (sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 1)
+  print("Raw SoftMax Output:")
+  predictions = app.model.predict(sample_ds)
+  print(type(predictions[0]))
+  print(predictions[0])
+  return predictions[0]
+
+
+def writeStandardSample(app):
+  with open('standardSample.csv', newline='',mode='w') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
+                traceWriter.writerow([i for i in range(785)]) #headers
+                traceWriter.writerow([0]+ app.pixels)
