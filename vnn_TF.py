@@ -22,8 +22,8 @@ import csv
 # setting up and training the Neural Net
 #************************************************
 def trainNN(app):
-  csv_file = 'C:/GitHub/VectNN/mnist_1_training.csv'
-  csv_test_file = 'C:/GitHub/VectNN/mnist_1_testing.csv'
+  csv_file = 'C:/GitHub/VectNN/mnist_1_training_theta.csv'
+  csv_test_file = 'C:/GitHub/VectNN/mnist_1_testing_theta.csv'
   dataframe = pd.read_csv(csv_file) 
   dataframe_testing = pd.read_csv(csv_test_file)
   dataframe = dataframe.fillna(value=0) #equiv to padding
