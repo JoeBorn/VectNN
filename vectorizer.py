@@ -3,6 +3,7 @@ all rights reserved '''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
 from vnn_TF import *
+from vnn_fileParser import *
 import math
 from PIL import Image 
 import decimal
@@ -14,12 +15,12 @@ import glob
 #TODO: grid screws up when canvas stretched
 #creates the training and testing csv files, used manually only when there's a change in trace, etc.
 def createCSVFile(app):
-    with open('mnist_1_training_theta.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+    with open('mnist_1_testing_closedFeat.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
                 traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
                 traceWriter.writerow([i for i in range(36)]) #headers
     for i in range(10):
         #path = f'C:/mnist/mnist_all_files/testing/{i}/'
-        path = f'C:/mnist/mnist_all_files/training/{i}/'
+        path = f'C:/mnist/mnist_all_files/testing/{i}/'
         for filename in glob.glob(os.path.join(path, '*.png')):
             with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
                 app.img = Image.open(filename)
@@ -28,30 +29,34 @@ def createCSVFile(app):
                     getMidPoints(app)
                     findEnds(app)
                     getTrace(app)
-                    with open('mnist_1_training_theta.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+                    with open('mnist_1_testing_closedFeat.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
                         traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
-                        traceWriter.writerow(traceThetaConverter(app,i))
+                        traceWriter.writerow(traceConverter(app,i))
                 except: 
                     print(filename)          
     print(f"done! no {i}")
 
 def traceConverter(app, i=0):
     hasGap = False
-    result = [i] + [0]*25
+    result = [i] + [0]*26
+    if app.trace[0] == app.trace[-1]: result[1] = 28 #closed feature
     for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
         if app.trace[i] != "gap":
             if hasGap == False:
                 (x,y) = app.trace[i]
-                result[2*i+1] =x
-                result[2*i+2] =y 
+                result[2*i+2] =x
+                result[2*i+3] =y 
             else: #new segment will start at index 25, proving a fixed point to NN
                 (x,y) = app.trace[i]
                 result.append(x)
                 result.append(y)
         else: 
             hasGap = True
+            if app.trace[i-1] == app.trace[0]:
+                result[1] = 28 # add "closed" feature to array
     return result[:36]
 
+#84% validation accuracy with 100 epochs
 def traceThetaConverter(app, i=0):
     dist1 = distance(app.trace[0],(0,0))
     angle1 = getSortOfAngle((-1,0),(0,0),app.trace[0])
@@ -132,7 +137,9 @@ def appStarted(app):
     getTrace(app)
     trainNN(app)
     #createCSVFile(app)
-
+    #standardFCTrain(app)
+    makeStandardPrediction(app)
+    #createStandardCSVFile(app)
 
 def makePrediction(app):    
     writeSample(app)
@@ -141,6 +148,21 @@ def makePrediction(app):
     app.predNum = prediction.index(max(prediction))
     app.confidence = int(max(prediction)*100)
     app.predictionMade = True
+
+def makeStandardPrediction(app):    
+    writeStandardSample(app)
+    prediction = predictStandard(app).tolist()
+    print("standard prediction")
+    print(prediction)
+    print(prediction.index(max(prediction)))
+    print("confidence: ",int(max(prediction)*100))    
+    app.confidence = int(max(prediction)*100)
+
+'''
+    app.prediction = prediction
+    app.predNum = prediction.index(max(prediction))
+    app.confidence = int(max(prediction)*100)
+    app.predictionMade = True  '''
 
 def variables(app):
     app.pixW = (app.width - 2*app.margin)//app.picWidth
