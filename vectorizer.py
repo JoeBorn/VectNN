@@ -40,6 +40,7 @@ def appStarted(app):
     trainStandardNN(app)
     trainVNN(app)
     #createVNNCSVFile(app)
+    #createThetaCSVFile(app)
 
 
 def traceConverter(app, i=0):
@@ -200,7 +201,9 @@ def visualizationButtonPressed(app,x,y):
     elif (.21*app.width-x)**2 +(.89*app.height-y)**2 < r**2:
         app.imageDisplay = "outline"
     elif (.21*app.width-x)**2 +(.92*app.height-y)**2 < r**2:
-        app.imageDisplay = "original"    
+        app.imageDisplay = "original" 
+    elif (.21*app.width-x)**2 +(.96*app.height-y)**2 < r**2:
+        app.imageDisplay = "none"  
 
 def mouseDragged(app, event):
     if app.markerActive:
@@ -631,6 +634,10 @@ def drawDisplayControls3(app, canvas):
     if app.imageDisplay == "original":
         canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+2*bH-r2,tCX-1.7*cW-10+r2,tCY+rH+2*bH+r2,fill="black")
     canvas.create_text(tCX-1.7*cW+30,tCY+rH+2*bH, text = "Original")
+    canvas.create_oval(tCX-1.7*cW-10-r,tCY+rH+3*bH-r,tCX-1.7*cW-10+r,tCY+rH+3*bH+r)
+    if app.imageDisplay == "none":
+        canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+3*bH-r2,tCX-1.7*cW-10+r2,tCY+rH+3*bH+r2,fill="black")
+    canvas.create_text(tCX-1.7*cW+22,tCY+rH+3*bH, text = "None")
 
 def drawNetworkControls(app, canvas):
     r = 11 #radio button radius
@@ -670,7 +677,8 @@ def drawGrid(app, canvas):
     canvas.create_text(100,700, text =f'Selected Coord(x,y): {app.selX}, {app.selY}')
 
 def drawImage(app, canvas):
-    canvas.create_text(30,app.height*.975, text=f'Threshold: {app.threshold}    {app.file}', font='Times 11', anchor = 'w')
+    canvas.create_text(40,675, text=f'Threshold: {app.threshold}    {app.file}', anchor = 'w')
+    if app.imageDisplay == "none": return
     if app.imageDisplay == "outline":
         midsList, outlineList = getMidPoints(app)
         for coords in outlineList:

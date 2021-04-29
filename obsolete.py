@@ -17,7 +17,22 @@ def standardFCTrain(app):
 
   app.model.fit(x_train, y_train, epochs=4,validation_data=(x_test,y_test))
 
-
+def traceConverter(app, i=0):
+    hasGap = False
+    result = [i] + [0]*25
+    for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
+        if app.trace[i] != "gap":
+            if hasGap == False:
+                (x,y) = app.trace[i]
+                result[2*i+1] =x
+                result[2*i+2] =y 
+            else: #new segment will start at index 25, proving a fixed point to NN
+                (x,y) = app.trace[i]
+                result.append(x)
+                result.append(y)
+        else: 
+            hasGap = True
+    return result[:36]
 '''
 test_loss, test_acc = model.evaluate(sample_ds, verbose=2)
 

@@ -92,27 +92,11 @@ def writeSample(app):
   with open('sample.csv', newline='',mode='w') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
                 traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
                 traceWriter.writerow([i for i in range(36)]) #headers
-                traceWriter.writerow(traceConverter2(app))
+                traceWriter.writerow(traceConverter(app))
+
 
 
 def traceConverter(app, i=0):
-    hasGap = False
-    result = [i] + [0]*25
-    for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
-        if app.trace[i] != "gap":
-            if hasGap == False:
-                (x,y) = app.trace[i]
-                result[2*i+1] =x
-                result[2*i+2] =y 
-            else: #new segment will start at index 25, proving a fixed point to NN
-                (x,y) = app.trace[i]
-                result.append(x)
-                result.append(y)
-        else: 
-            hasGap = True
-    return result[:36]
-
-def traceConverter2(app, i=0):
   hasGap = False
   result = [i] + [0]*26
   if app.trace[0] == app.trace[-1]: result[1] = 28 #closed feature
@@ -150,3 +134,4 @@ def writeStandardSample(app):
                 traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
                 traceWriter.writerow([i for i in range(785)]) #headers
                 traceWriter.writerow([0]+ app.pixels)
+
