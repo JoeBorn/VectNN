@@ -10,31 +10,39 @@ import decimal
 import csv
 import glob
 
-#theta branch
+def appStarted(app):
+    app.picHeight = 28 # a y and x for each pixel 
+    app.picWidth = 28 # a y and x for each pixel 
+    app.selX = 0
+    app.selY = 0
+    app.margin = 100
+    app.botMargin = 300
+    app.mouseMovedDelay = 10
+    app.offset = app.margin + 10 # from 0,0 to the center of a cell
+    app.file = 'C:/mnist/mnist_all_files/training/8/17.png'  
+    app.img = Image.open(app.file)
+    app.pixels = list(app.img.getdata())
+    app.drawingMode = None
+    app.midPointsOn = True
+    app.endsBendsOn = True
+    app.traceOn = True
+    app.contPath = "one"
+    app.markerActive = False
+    app.eraserActive = False
+    app.predictionMade = False
+    app.imageDisplay = "original"
+    app._root.resizable(False, False)
+    app.network = "VNN"
+    variables(app)
+    findEnds(app) #TODO 
+    getMidPoints(app)
+    getTrace(app)
 
-#TODO: grid screws up when canvas stretched
-#creates the training and testing csv files, used manually only when there's a change in trace, etc.
-def createCSVFile(app):
-    with open('mnist_1_testing_closedFeat.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
-                traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
-                traceWriter.writerow([i for i in range(36)]) #headers
-    for i in range(10):
-        #path = f'C:/mnist/mnist_all_files/testing/{i}/'
-        path = f'C:/mnist/mnist_all_files/testing/{i}/'
-        for filename in glob.glob(os.path.join(path, '*.png')):
-            with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
-                app.img = Image.open(filename)
-                app.pixels = list(app.img.getdata())
-                try:
-                    getMidPoints(app)
-                    findEnds(app)
-                    getTrace(app)
-                    with open('mnist_1_testing_closedFeat.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
-                        traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
-                        traceWriter.writerow(traceConverter(app,i))
-                except: 
-                    print(filename)          
-    print(f"done! no {i}")
+    #createStandardCSVFile(app)
+    #trainNN(app)
+    #makeStandardPrediction(app)
+    #createStandardCSVFile(app)
+
 
 def traceConverter(app, i=0):
     hasGap = False
@@ -112,37 +120,6 @@ def isLeft(coord1,coord2,coord3):
     x3,y3 = coord3
     return ((x2 - x1)*(y3 - y1) - (y2 - y1)*(x3 - x1)) > 0
 
-def appStarted(app):
-    app.picHeight = 28 # a y and x for each pixel 
-    app.picWidth = 28 # a y and x for each pixel 
-    app.selX = 0
-    app.selY = 0
-    app.margin = 100
-    app.botMargin = 300
-    app.mouseMovedDelay = 10
-    app.offset = app.margin + 10 # from 0,0 to the center of a cell
-    app.file = 'C:/mnist/mnist_all_files/training/8/17.png'  
-    app.img = Image.open(app.file)
-    app.pixels = list(app.img.getdata())
-    app.drawingMode = None
-    app.midPointsOn = True
-    app.endsBendsOn = True
-    app.traceOn = True
-    app.contPath = "one"
-    app.markerActive = False
-    app.eraserActive = False
-    app.predictionMade = False
-    app.imageDisplay = "original"
-    variables(app)
-    findEnds(app) #TODO 
-    getMidPoints(app)
-    getTrace(app)
-    trainNN(app)
-    #createCSVFile(app)
-    #standardFCTrain(app)
-    makeStandardPrediction(app)
-    #createStandardCSVFile(app)
-
 def makePrediction(app):    
     writeSample(app)
     prediction = predictSample(app).tolist()
@@ -159,13 +136,12 @@ def makeStandardPrediction(app):
     print(prediction.index(max(prediction)))
     print("confidence: ",int(max(prediction)*100))    
     app.confidence = int(max(prediction)*100)
-
-'''
+    app.predictionMade = True
     app.prediction = prediction
     app.predNum = prediction.index(max(prediction))
     app.confidence = int(max(prediction)*100)
-    app.predictionMade = True  '''
-
+    app.predictionMade = True  
+    
 def variables(app):
     app.pixW = (app.width - 2*app.margin)//app.picWidth
     app.pixH = (app.height - app.margin -app.botMargin)//app.picHeight
@@ -218,7 +194,7 @@ def mousePressed(app, event):
             index = getIndex(app.selX,app.selY)
             app.pixels[index]= 2 # sets pixel to an arbitrary "light" value
     elif .18*app.width<event.x<.27*app.width and .028*app.height<event.y<.071*app.height:
-        makePrediction(app)
+        makeStandardPrediction(app)
     elif .55*app.width<event.x<.76*app.width and .73*app.height<event.y<.78*app.height:
         drawingButtonPressed(app, event.x,event.y)
     elif .05*app.width<event.x<.15*app.width and .75*app.height<event.y<.88*app.height:
@@ -539,7 +515,8 @@ def isConnected(app,mid1,mid2): #makes sure no gap between midpoints
         elif app.pixels[getIndex(x2-dx,y2)] > app.threshold and isConnected(app,(x1,y1),(x2-dx,y2)):
             return True
         else:
-            return False    
+            return False
+
 #this function produces pairs of contigous midpoints, ultimately used
 # in getTrace
 def contiguousPairs(app,midsList):
@@ -703,6 +680,19 @@ def drawDisplayControls3(app, canvas):
         canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+2*bH-r2,tCX-1.7*cW-10+r2,tCY+rH+2*bH+r2,fill="black")
     canvas.create_text(tCX-1.7*cW+30,tCY+rH+2*bH, text = "Original")
 
+def drawNetworkControls(app, canvas):
+    r = 11 #radio button radius
+    r2 = 6 #inner radio button radius
+    canvas.create_text(15,8, text = "Network Type:", anchor = "w")
+    canvas.create_oval(30-r,32-r,30+r,32+r)
+    if app.network == "Regular": 
+        canvas.create_oval(30-r2,32-r2,30+r2,32+r2, fill= "black")
+    canvas.create_text(50,32, text = "Standard NN", anchor = "w")
+    canvas.create_oval(30-r,60-r,30+r,60+r)
+    if app.network == "VNN":
+        canvas.create_oval(30-r2,60-r2,30+r2,60+r2, fill="black")
+    canvas.create_text(50,60, text = "Vector NN", anchor = "w")
+
 def drawMidPoints(app, canvas):
     #from: https://www.cs.cmu.edu/~112/notes/notes-graphics.html#customColors
     pistachio = rgbString(147, 197, 114)
@@ -836,6 +826,7 @@ def redrawAll(app, canvas):
     drawDisplayControls3(app,canvas)
     drawCharacter(app,canvas)
     drawPrediction(app,canvas)
+    drawNetworkControls(app,canvas)
     
 def main():
     #cs112_s21_week4_linter.lint()
