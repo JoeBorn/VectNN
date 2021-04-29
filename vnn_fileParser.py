@@ -2,6 +2,9 @@ import csv
 from cmu_112_graphics import *
 import glob
 from PIL import Image
+from vectorizer import *
+
+#createStandardCSVFile(app)
 
 def createStandardCSVFile(app):
     with open('mnist_standard_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
@@ -23,13 +26,13 @@ def createStandardCSVFile(app):
     print(f"done! no {i}")
 
     #creates the training and testing csv files, used manually only when there's a change in trace, etc.
-def createCSVFile(app):
-    with open('mnist_1_testing_closedFeat.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+def createVNNCSVFile(app):
+    with open('mnist_VNN_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
                 traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
                 traceWriter.writerow([i for i in range(36)]) #headers
     for i in range(10):
         #path = f'C:/mnist/mnist_all_files/testing/{i}/'
-        path = f'C:/mnist/mnist_all_files/testing/{i}/'
+        path = f'C:/mnist/mnist_all_files/training/{i}/'
         for filename in glob.glob(os.path.join(path, '*.png')):
             with open(os.path.join(os.getcwd(), filename), 'r') as f: # open in readonly mode
                 app.img = Image.open(filename)
@@ -38,9 +41,66 @@ def createCSVFile(app):
                     getMidPoints(app)
                     findEnds(app)
                     getTrace(app)
-                    with open('mnist_1_testing_closedFeat.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
+                    with open('mnist_VNN_training.csv', newline='',mode='a') as csvfile: # https://realpython.com/python-csv/#:~:text=Reading%20from%20a%20CSV%20file,which%20does%20the%20heavy%20lifting.
                         traceWriter = csv.writer(csvfile, delimiter=',') # delimiter here means what it writes to delimit 
-                        traceWriter.writerow(traceConverter(app,i))
+                        traceWriter.writerow(traceConverter2(app,i))
                 except: 
                     print(filename)          
     print(f"done! no {i}")
+
+
+#84% validation accuracy with 100 epochs
+def traceThetaConverter(app, i=0):
+    dist1 = distance(app.trace[0],(0,0))
+    angle1 = getSortOfAngle((-1,0),(0,0),app.trace[0])
+    dist2 = distance(app.trace[1],app.trace[0])
+    angle2 = getSortOfAngle((0,0),app.trace[0],app.trace[1])
+    result = [i] + [0]+ [dist1]+[angle1]+[dist2]+[angle2]+[0]*19
+    if app.trace[0] == app.trace[-1]: result[1] = 28 #closed feature 
+    hasGap = False
+    i = 2
+    while i <min(len(app.trace), 12): #truncates at 12 (w/o gap)
+        if app.trace[i] != "gap":
+            if app.trace[i-1] != "gap" and app.trace[i-2] != "gap":
+                angle = getSortOfAngle(app.trace[i-2],app.trace[i-1],app.trace[i])
+                dist = distance(app.trace[i-1],app.trace[i])
+                if hasGap == False:
+                    result[2*i] = dist
+                    result[2*i+1] = angle
+                else: #new segment will start at index 25, proving a fixed point to NN
+                    result.append(dist)
+                    result.append(angle)
+            i += 1
+        else: 
+            hasGap = True
+            startingPoint = True
+            if app.trace[i-1] == app.trace[0]:
+                result[1] = 28 # add "closed" feature to array
+            if i+2<len(app.trace) and app.trace[i+1] != "gap" and app.trace[i+2] != "gap":
+                dist1 = distance(app.trace[i+1],(0,0))
+                angle1 = getSortOfAngle((-1,0),(0,0),app.trace[i+1])
+                dist2 = distance(app.trace[i+1],app.trace[i+2])
+                angle2 = getSortOfAngle((0,0),app.trace[i+1],app.trace[i+2])
+                result.extend([dist1,angle1,dist2,angle2])
+            i +=3 
+    return result[:36]
+
+
+# returns an "angle" value 0 and 10*Pi between two head to tail vectors 
+def getSortOfAngle(coord1,coord2,coord3):
+    x1,y1 = coord1
+    x2,y2 = coord2
+    x3,y3 = coord3
+    sign = -1
+    if isLeft(coord1,coord2,coord3): sign = 1
+    angle = math.pi+sign*(math.acos(((x2-x1)*(x3-x2)+(y2-y1)*(y3-y2))
+    /(math.sqrt((x2-x1)**2+(y2-y1)**2)
+    *math.sqrt((x3-x2)**2+(y3-y2)**2))))
+    return angle*5
+
+#https://stackoverflow.com/questions/1560492/how-to-tell-whether-a-point-is-to-the-right-or-left-side-of-a-line
+def isLeft(coord1,coord2,coord3):
+    x1,y1 = coord1
+    x2,y2 = coord2
+    x3,y3 = coord3
+    return ((x2 - x1)*(y3 - y1) - (y2 - y1)*(x3 - x1)) > 0

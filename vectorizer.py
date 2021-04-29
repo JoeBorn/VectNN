@@ -37,11 +37,9 @@ def appStarted(app):
     findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-
-    #createStandardCSVFile(app)
-    #trainNN(app)
-    #makeStandardPrediction(app)
-    #createStandardCSVFile(app)
+    trainStandardNN(app)
+    trainVNN(app)
+    #createVNNCSVFile(app)
 
 
 def traceConverter(app, i=0):
@@ -64,65 +62,10 @@ def traceConverter(app, i=0):
                 result[1] = 28 # add "closed" feature to array
     return result[:36]
 
-#84% validation accuracy with 100 epochs
-def traceThetaConverter(app, i=0):
-    dist1 = distance(app.trace[0],(0,0))
-    angle1 = getSortOfAngle((-1,0),(0,0),app.trace[0])
-    dist2 = distance(app.trace[1],app.trace[0])
-    angle2 = getSortOfAngle((0,0),app.trace[0],app.trace[1])
-    result = [i] + [0]+ [dist1]+[angle1]+[dist2]+[angle2]+[0]*19
-    if app.trace[0] == app.trace[-1]: result[1] = 28 #closed feature 
-    hasGap = False
-    i = 2
-    while i <min(len(app.trace), 12): #truncates at 12 (w/o gap)
-        if app.trace[i] != "gap":
-            if app.trace[i-1] != "gap" and app.trace[i-2] != "gap":
-                angle = getSortOfAngle(app.trace[i-2],app.trace[i-1],app.trace[i])
-                dist = distance(app.trace[i-1],app.trace[i])
-                if hasGap == False:
-                    result[2*i] = dist
-                    result[2*i+1] = angle
-                else: #new segment will start at index 25, proving a fixed point to NN
-                    result.append(dist)
-                    result.append(angle)
-            i += 1
-        else: 
-            hasGap = True
-            startingPoint = True
-            if app.trace[i-1] == app.trace[0]:
-                result[1] = 28 # add "closed" feature to array
-            if i+2<len(app.trace) and app.trace[i+1] != "gap" and app.trace[i+2] != "gap":
-                dist1 = distance(app.trace[i+1],(0,0))
-                angle1 = getSortOfAngle((-1,0),(0,0),app.trace[i+1])
-                dist2 = distance(app.trace[i+1],app.trace[i+2])
-                angle2 = getSortOfAngle((0,0),app.trace[i+1],app.trace[i+2])
-                result.extend([dist1,angle1,dist2,angle2])
-            i +=3 
-    return result[:36]
-
-
-# returns an "angle" value 0 and 10*Pi between two head to tail vectors 
-def getSortOfAngle(coord1,coord2,coord3):
-    x1,y1 = coord1
-    x2,y2 = coord2
-    x3,y3 = coord3
-    sign = -1
-    if isLeft(coord1,coord2,coord3): sign = 1
-    angle = math.pi+sign*(math.acos(((x2-x1)*(x3-x2)+(y2-y1)*(y3-y2))
-    /(math.sqrt((x2-x1)**2+(y2-y1)**2)
-    *math.sqrt((x3-x2)**2+(y3-y2)**2))))
-    return angle*5
-
-#https://stackoverflow.com/questions/1560492/how-to-tell-whether-a-point-is-to-the-right-or-left-side-of-a-line
-def isLeft(coord1,coord2,coord3):
-    x1,y1 = coord1
-    x2,y2 = coord2
-    x3,y3 = coord3
-    return ((x2 - x1)*(y3 - y1) - (y2 - y1)*(x3 - x1)) > 0
 
 def makePrediction(app):    
     writeSample(app)
-    prediction = predictSample(app).tolist()
+    prediction = predictVNN(app).tolist()
     app.prediction = prediction
     app.predNum = prediction.index(max(prediction))
     app.confidence = int(max(prediction)*100)
@@ -185,6 +128,7 @@ def sizeChanged(app):
     variables(app)
 
 def mousePressed(app, event):  
+    r = 11 #radio button radius
     if pointInGrid(app,event.x,event.y):
         app.selX, app.selY = getGridCoords(app,event.x,event.y)
         if app.markerActive:
@@ -193,8 +137,16 @@ def mousePressed(app, event):
         if app.eraserActive:
             index = getIndex(app.selX,app.selY)
             app.pixels[index]= 2 # sets pixel to an arbitrary "light" value
+    #prediction related functions
     elif .18*app.width<event.x<.27*app.width and .028*app.height<event.y<.071*app.height:
-        makeStandardPrediction(app)
+        if app.network == "Standard":
+            makeStandardPrediction(app)
+        else: makePrediction(app)
+    elif (event.x - 30)**2 + (event.y - 32)**2 < r**2:
+        app.network = "Standard"
+    elif (event.x - 30)**2 + (event.y - 60)**2 < r**2:
+        app.network = "VNN"    
+    #other button consoles
     elif .55*app.width<event.x<.76*app.width and .73*app.height<event.y<.78*app.height:
         drawingButtonPressed(app, event.x,event.y)
     elif .05*app.width<event.x<.15*app.width and .75*app.height<event.y<.88*app.height:
@@ -685,7 +637,7 @@ def drawNetworkControls(app, canvas):
     r2 = 6 #inner radio button radius
     canvas.create_text(15,8, text = "Network Type:", anchor = "w")
     canvas.create_oval(30-r,32-r,30+r,32+r)
-    if app.network == "Regular": 
+    if app.network == "Standard": 
         canvas.create_oval(30-r2,32-r2,30+r2,32+r2, fill= "black")
     canvas.create_text(50,32, text = "Standard NN", anchor = "w")
     canvas.create_oval(30-r,60-r,30+r,60+r)

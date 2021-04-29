@@ -20,8 +20,9 @@ import csv
 #************************************************
 # Importing and formatting the data -pandas
 # setting up and training the Neural Net
+# below is the standard Fully Connected Neural Network
 #************************************************
-def trainNN(app):
+def trainStandardNN(app):
   csv_file = 'mnist_standard_training.csv'
   csv_test_file = 'mnist_standard_testing.csv'
   dataframe = pd.read_csv(csv_file) 
@@ -31,13 +32,34 @@ def trainNN(app):
   #print ("dataframe.head() \n",dataframe.head()) #prints out the table
   (train_ds) = df_to_dataset(dataframe, batch_size = 512) 
   (test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
-  app.model = tf.keras.models.Sequential([
+  app.StandardModel = tf.keras.models.Sequential([
   tf.keras.layers.Dense(512, activation=tf.nn.relu),
   tf.keras.layers.Dense(10, activation=tf.nn.softmax)])
-  app.model.compile(optimizer='adam',
+  app.StandardModel.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
-  app.model.fit(train_ds, epochs=10, validation_data=test_ds)
+  app.StandardModel.fit(train_ds, epochs=10, validation_data=test_ds)
+  #app.StandardModel.save('standardModel.h5')
+
+def trainVNN(app):
+  csv_file = 'mnist_VNN_training.csv'
+  csv_test_file = 'mnist_VNN_testing.csv'
+  dataframe = pd.read_csv(csv_file) 
+  dataframe_testing = pd.read_csv(csv_test_file)
+  dataframe = dataframe.fillna(value=0) #equiv to padding
+  dataframe_testing = dataframe_testing.fillna(value=0)
+  #print ("dataframe.head() \n",dataframe.head()) #prints out the table
+  (train_ds) = df_to_dataset(dataframe, batch_size = 512) 
+  (test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
+  app.VNNmodel = tf.keras.models.Sequential([
+  tf.keras.layers.Dense(512, activation=tf.nn.relu),
+  tf.keras.layers.Dense(10, activation=tf.nn.softmax)])
+  app.VNNmodel.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+  app.VNNmodel.fit(train_ds, epochs=180, validation_data=test_ds)
+
+
 
 # A utility method to create a tf.data dataset from a Pandas Dataframe, 
 def df_to_dataset(dataframe, shuffle=True, batch_size=32):
@@ -55,13 +77,13 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
 #************************************************
 # Evaluating a new sample
 #************************************************
-def predictSample(app):
+def predictVNN(app):
   csv_samples = 'sample.csv'
   dataframe_samples = pd.read_csv(csv_samples) 
   dataframe_samples = dataframe_samples.fillna(value=0)
   (sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 1)
   print("Raw SoftMax Output:")
-  predictions = app.model.predict(sample_ds)
+  predictions = app.VNNmodel.predict(sample_ds)
   print(type(predictions[0]))
   print(predictions[0])
   return predictions[0]
@@ -117,7 +139,8 @@ def predictStandard(app):
   dataframe_samples = dataframe_samples.fillna(value=0)
   (sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 1)
   print("Raw SoftMax Output:")
-  predictions = app.model.predict(sample_ds)
+  #app.StandardModel = tf.keras.models.load_model('standardModel.h5')
+  predictions = app.StandardModel.predict(sample_ds)
   print(type(predictions[0]))
   print(predictions[0])
   return predictions[0]
