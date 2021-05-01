@@ -4,11 +4,8 @@ all rights reserved '''
 from cmu_112_graphics import *
 from vnn_TF import *
 from vnn_fileParser import *
-import math
+import math, decimal, time
 from PIL import Image 
-import decimal
-import csv
-import glob
 
 def appStarted(app):
     app.picHeight = 28 # a y and x for each pixel 
@@ -19,7 +16,7 @@ def appStarted(app):
     app.botMargin = 300
     app.mouseMovedDelay = 10
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
-    app.file = 'C:/mnist/mnist_all_files/training/8/17.png'  
+    app.file = 'imageFiles/2/5.png'
     app.img = Image.open(app.file)
     app.pixels = list(app.img.getdata())
     app.drawingMode = None
@@ -33,6 +30,12 @@ def appStarted(app):
     app.imageDisplay = "original"
     app._root.resizable(False, False)
     app.network = "VNN"
+    app.gameMode = False
+    app.welcome = 0
+    app.showDemo = True
+    app.gameFileIndex = 0
+    app.i = 0
+    app.waitToAdvance = False
     variables(app)
     findEnds(app) #TODO 
     getMidPoints(app)
@@ -64,7 +67,7 @@ def traceConverter(app, i=0):
     return result[:36]
 
 
-def makePrediction(app):    
+def makeVNNPrediction(app):    
     writeSample(app)
     prediction = predictVNN(app).tolist()
     app.prediction = prediction
@@ -74,13 +77,7 @@ def makePrediction(app):
 
 def makeStandardPrediction(app):    
     writeStandardSample(app)
-    prediction = predictStandard(app).tolist()
-    print("standard prediction")
-    print(prediction)
-    print(prediction.index(max(prediction)))
-    print("confidence: ",int(max(prediction)*100))    
-    app.confidence = int(max(prediction)*100)
-    app.predictionMade = True
+    prediction = predictStandard(app).tolist()  
     app.prediction = prediction
     app.predNum = prediction.index(max(prediction))
     app.confidence = int(max(prediction)*100)
@@ -89,8 +86,13 @@ def makeStandardPrediction(app):
 def variables(app):
     app.pixW = (app.width - 2*app.margin)//app.picWidth
     app.pixH = (app.height - app.margin -app.botMargin)//app.picHeight
-    app.threshold = 120 # lightness threshold to determine edges of chars
     #0 is black, 255 is white, on pngs, letters are light on black background
+    #This is reversed when displayed
+    app.threshold = 120   # lightness threshold to determine edges of chars
+    #imagefile and standard NN confidence or original image store in dict
+    app.gameFiles = \
+    {0:['imageFiles/8/17.png',.95], 1:['imageFiles/0/55.png',
+    .93], 2:['imageFiles/1/5.png',.94], 3:['imageFiles/5/52.png',.99],4:['imageFiles/7/70b.png',.99],5:['imageFiles/3/63b.png',.98],6:['imageFiles/4/24b.png',.94]}
 
 #https://www.cs.cmu.edu/~112/notes/notes-variables-and-functions.html#RecommendedFunctions.
 def roundHalfUp(d):
@@ -125,10 +127,9 @@ def pointInGrid(app,x,y):
     return ((app.margin + 2*app.pixW <= x <= app.width - app.margin - 2*app.pixW) and \
         (app.margin + 2*app.pixH <= y <=app.height -app.botMargin - 2*app.pixH))
 
-def sizeChanged(app):
-    variables(app)
 
-def mousePressed(app, event):  
+def mousePressed(app, event): 
+    print(event.x,event.y)
     r = 11 #radio button radius
     if pointInGrid(app,event.x,event.y):
         app.selX, app.selY = getGridCoords(app,event.x,event.y)
@@ -139,14 +140,11 @@ def mousePressed(app, event):
             index = getIndex(app.selX,app.selY)
             app.pixels[index]= 2 # sets pixel to an arbitrary "light" value
     #prediction related functions
-    elif .18*app.width<event.x<.27*app.width and .028*app.height<event.y<.071*app.height:
-        if app.network == "Standard":
-            makeStandardPrediction(app)
-        else: makePrediction(app)
-    elif (event.x - 30)**2 + (event.y - 32)**2 < r**2:
-        app.network = "Standard"
-    elif (event.x - 30)**2 + (event.y - 60)**2 < r**2:
-        app.network = "VNN"    
+    elif 6 < event.x < 225 and 6 < event.y < 74:
+        predictionButtonsPressed(app,event.x,event.y)
+    #the game button
+    elif (642 < event.x < 738) and (15 < event.y < 85):
+        gameButtonPressed(app)     
     #other button consoles
     elif .55*app.width<event.x<.76*app.width and .73*app.height<event.y<.78*app.height:
         drawingButtonPressed(app, event.x,event.y)
@@ -154,13 +152,104 @@ def mousePressed(app, event):
         fileButtonPressed(app,event.x,event.y)
     elif .19*app.width<event.x<.9*app.width and .88*app.height<event.y<.96*app.height:
         visualizationButtonPressed(app,event.x,event.y)
+    #"did I fool the AI button"
+    if app.gameMode == True and app.waitToAdvance == False:
+        if 235 < event.x < 385 and 705 < event.y < 750:
+            foolTheAIPressed(app)
+
+def foolTheAIPressed(app):
+    app.gamePredictHeadline = f"The Robot is Thinking..."
+    app.gamePredictBody = ''
+    userNumber = int(app.getUserInput("What number did you just draw?"))
+    if not isinstance(userNumber,int):
+        userNumber = int(app.getUserInput("Input an integer, please."))
+    app.waitToAdvance = True
+    makeStandardPrediction(app)
+    standardPrediction = app.predNum
+    #standardPrediction = 8
+    if userNumber == standardPrediction:
+        app.gamePredictHeadline = "Probably not."
+        app.gamePredictBody = \
+        f"Both you and the Neural Network think you drew the no. {userNumber}"
+        app.gameScoreText = \
+        f"You fooled the robot {app.gameWins} out of {app.gameFileIndex + 1}" + \
+        f" times. Press 'Next Image' to try again."
+    else:
+        standardConfidence = app.confidence
+        makeVNNPrediction(app)
+        vNNPrediction = app.predNum
+        #standardConfidence = 99
+        #vNNPrediction = 8
+        if userNumber == vNNPrediction:
+            app.gamePredictHeadline = "Yes!"
+            app.gamePredictBody = \
+            f"The Neural Network predicts no. {standardPrediction} " + \
+            f"with {standardConfidence} % confidence, \nbut both you " + \
+            f"and the VNN agree it's the no. {userNumber}"
+            app.gameWins += 1
+            app.gameScoreText = \
+            f"You fooled the robot {app.gameWins} " + \
+            f"out of {app.gameFileIndex + 1} times." + \
+            f" Press 'Next Image' to try again."
+        else:
+            if vNNPrediction == standardPrediction:
+                app.gamePredictBody = \
+            f"The Neural Network predicts no. {standardPrediction} " + \
+            f"with {standardConfidence} % confidence \nand the VNN also " + \
+            f"thinks it's the no. {vNNPrediction}, but you say it's the no. " + \
+            f"{userNumber}. \nAs a fellow human, we think you're probably right." +\
+            f"\nUse the 'Save File' function and see what your friends think."
+            else: #none of the predictions agree
+                app.gamePredictBody = \
+            f"The Neural Network predicts no. {standardPrediction} " + \
+            f"with {standardConfidence} % confidence. \nThe VNN thinks it's" + \
+            f" the no. {vNNPrediction}, but you say it's the no. {userNumber}." + \
+            f"\nAs a fellow human, we think you're probably right."+ \
+            f"\nUse the 'Save File' function and see what your friends think."
+            app.gamePredictHeadline = "Probably."
+            app.gameWins += 1
+            app.gameScoreText = \
+            f"You fooled the robot {app.gameWins} " + \
+            f"out of {app.gameFileIndex + 1} times." + \
+            f" press 'Next Image' to try again."
+
+def predictionButtonsPressed(app,x,y):
+    r = 11
+    if .18*app.width<x<.27*app.width and .028*app.height<y<.071*app.height:
+        if app.network == "Standard":
+            makeStandardPrediction(app)
+        else: makeVNNPrediction(app)
+    elif (x - 30)**2 + (y - 32)**2 < r**2:
+        app.network = "Standard"
+    elif (x - 30)**2 + (y - 60)**2 < r**2:
+        app.network = "VNN"
+
+def gameButtonPressed(app):
+    app.gameMode = not app.gameMode
+    if app.gameMode == True:
+        app.gamePredictHeadline = ''
+        app.gamePredictBody = ''
+        app.gameScoreText = ''
+        app.gameFileIndex = 0
+        app.gameWins = 0
+        app.welcome = 1
+        app.midPointsOn = False
+        app.endsBendsOn = False
+        app.traceOn = True
+        app.contPath = "off"
+        app.imageDisplay = "original"
+        app.predictionMade = False
+        app.file = app.gameFiles[0][0]
+        app.img = Image.open(app.file)
+        app.pixels = list(app.img.getdata())
+        findEnds(app) #TODO 
+        getMidPoints(app)
+        getTrace(app)
+    else:
+        app.predictionMade = False
+        
 
 def drawingButtonPressed(app,x,y):
-    #clear button
-    if .55*app.width<x<.60*app.width and .73*app.height<y<.78*app.height:
-        app.pixels = [2 for i in range(784)]
-        app.trace = []
-        app.ends, app.bends = [], []
     #erase button
     if .63*app.width<x<.67*app.width and .73*app.height<y<.78*app.height:
         app.eraserActive = not app.eraserActive
@@ -169,8 +258,36 @@ def drawingButtonPressed(app,x,y):
     if .71*app.width<x<.75*app.width and .73*app.height<y<.78*app.height:
         app.markerActive = not app.markerActive
         app.eraserActive = False
+    #clear/next button
+    if .55*app.width<x<.60*app.width and .73*app.height<y<.78*app.height:
+        if app.gameMode == True: #next button
+            if app.gameFileIndex >= len(app.gameFiles)-1:
+                app.gamePredictHeadline = "Game Over!"
+                app.gamePredictBody = \
+                f"Now that you've learned the basics of an adversarial " + \
+                f"\nattack, continue to hone your skills with this tool and " +\
+                f"\ngain more intuition about how Neural Networks 'think.'" + \
+                f"\nAnd save the files to prove you can outsmart a robot."
+                app.gameScoreText = \
+                f"You fooled the robot {app.gameWins} " + \
+                f"out of {app.gameFileIndex + 1} times!"
+                return
+            app.gameFileIndex +=1 
+            app.file = app.gameFiles[app.gameFileIndex][0] 
+            app.img = Image.open(app.file)
+            app.pixels = list(app.img.getdata())
+            findEnds(app) #TODO 
+            getMidPoints(app)
+            getTrace(app)
+            app.predictionMade = False
+            app.waitToAdvance = False         
+        else: #clear button
+            app.pixels = [2 for i in range(784)]
+            app.trace = []
+            app.ends, app.bends = [], []
 
 def fileButtonPressed(app,x,y):
+    if app.gameMode == True: return
     if .05*app.width<x<.15*app.width and .76*app.height<y<.80*app.height:
         try: saveFile(app)
         except: return
@@ -179,6 +296,7 @@ def fileButtonPressed(app,x,y):
         except: return
 
 def visualizationButtonPressed(app,x,y):
+    if app.gameMode == True: return
     r = 11
     if (.39*app.width-x)**2 +(.89*app.height-y)**2 < r**2:
         app.midPointsOn = True
@@ -294,7 +412,7 @@ def getStartPoint(app): #returns starting point to trace
             if dist < minDist:
                 minDist = dist
                 (startX, startY) = (x,y)
-        app.bends.remove((startX,startY))#TODO mistake- this removes each end in order (or should anyway)
+        app.bends.remove((startX,startY))
         return (startX, startY)
     else: return (None, None)
 
@@ -531,15 +649,21 @@ def findEnds(app):
                 allConnected = False #the connections aren't connected to each other
                 # ie it's not an end, just a side of a curve, a "bend"
             i += 1
+
+def keyPressed(app, event):
+    pages = 5
+    if 0 < app.welcome < pages and event.key.upper() == "N":
+        app.welcome += 1
+        app.i = 0
+    else:
+        app.welcome = 0
+    
         
 def drawButtons(app, canvas):
     bW = 40 #button half width
     bH = 25 #button half height
     dCX,dCY = app.width//2 + 115, app.height*.705 # drawing tools console center
     canvas.create_text(dCX,dCY, text = "Drawing Tools")
-    #clear drawing button
-    canvas.create_rectangle(dCX -2*bW, dCY +bH, dCX -bW, dCY+ 3*bH)
-    canvas.create_text(dCX-3*bW//2,dCY +2*bH, text = "Clear")
     #eraser button
     eraserColor = "white"
     if app.eraserActive: eraserColor = "light gray"
@@ -552,9 +676,41 @@ def drawButtons(app, canvas):
     canvas.create_rectangle(dCX +bW, dCY +bH, dCX +2*bW, dCY+ 3*bH, fill = markerColor )
     canvas.create_rectangle(dCX+bW+10 , dCY+bH+20, dCX+2*bW-10, dCY+bH+42, fill = "black" )
     canvas.create_polygon(dCX+bW+10 , dCY+bH+18, dCX+2*bW-10,dCY+bH+18,dCX+3*bW//2,dCY+bH+6,fill = "gray", width = 1 )
-    #file related buttons
+    #clear drawing button
+    if app.gameMode == True: return
+    canvas.create_rectangle(dCX -2*bW, dCY +bH, dCX -bW, dCY+ 3*bH)
+    canvas.create_text(dCX-3*bW//2,dCY +2*bH, text = "Clear")
+
+def drawGameButton(app, canvas):
+    canvas.create_rectangle(.84*app.width,15,.97*app.width,85, fill = "pink")
+    if app.gameMode == False:
+        canvas.create_text(.905*app.width, 33, text = "Play" )
+        canvas.create_text(.905*app.width, 60, text = "Fool the AI")
+    else:
+        canvas.create_text(.905*app.width, 33, text = "Exit" )
+        canvas.create_text(.905*app.width, 60, text = "The Game")
+
+def drawGameInfo(app,canvas):
+        canvas.create_rectangle(240,703,390,753, fill = "pink")
+        canvas.create_text(315,718, text ="Did I")
+        canvas.create_text(315,738, text ="Fool the AI?")
+        canvas.create_rectangle(410,703,455,753)
+        canvas.create_text(430,715, text = "Next")
+        canvas.create_text(430,738, text = "Image")
+        canvas.create_text(230,795, text = app.gamePredictHeadline, 
+        font= "Times 20 bold", anchor = "w" )
+        canvas.create_text(230,855, text = app.gamePredictBody, 
+        font= "Times 13", anchor = "w" )
+        canvas.create_text(230,930, text = app.gameScoreText, 
+        font= "Times 13 bold", anchor = "w" )
+
+#file related buttons
+def drawFileButtons(app, canvas):
+    bW = 40 #button half width
+    bH = 30 #button half height
     canvas.create_rectangle(app.width*.1-bW, app.height*.78-bH, app.width*.1+bW, app.height*.78+bH )
     canvas.create_text(app.width*.1,app.height*.78, text = "save file")
+    if app.gameMode == True: return
     canvas.create_rectangle(app.width*.1-bW, app.height*.85-bH, app.width*.1+bW, app.height*.85+bH)
     canvas.create_text(app.width*.1,app.height*.85, text = "open file")
 
@@ -570,22 +726,26 @@ def drawDisplayControls(app,canvas):
     canvas.create_text(tCX-cW,tCY+rH, text = "Midpoints")
     canvas.create_oval(tCX-cW-10-r,tCY+rH+bH-r,tCX-cW-10+r,tCY+rH+bH+r)
     if app.midPointsOn: 
-        canvas.create_oval(tCX-cW-10-r2,tCY+rH+bH-r2,tCX-cW-10+r2,tCY+rH+bH+r2, fill= "black")
+        canvas.create_oval(tCX-cW-10-r2,tCY+rH+bH-r2,
+        tCX-cW-10+r2,tCY+rH+bH+r2, fill= "black")
     canvas.create_text(tCX-cW+30,tCY+rH+bH, text = "On")
     canvas.create_oval(tCX-cW-10-r,tCY+rH+2*bH-r,tCX-cW-10+r,tCY+rH+2*bH+r)
     if not app.midPointsOn:
-        canvas.create_oval(tCX-cW-10-r2,tCY+rH+2*bH-r2,tCX-cW-10+r2,tCY+rH+2*bH+r2,fill="black")
+        canvas.create_oval(tCX-cW-10-r2,tCY+rH+2*bH-r2,
+        tCX-cW-10+r2,tCY+rH+2*bH+r2,fill="black")
     canvas.create_text(tCX-cW+30,tCY+rH+2*bH, text = "Off")
     canvas.create_text(tCX-cW//3,tCY+rH, text = "Ends/Bends")
     canvas.create_oval(tCX-cW//3-10-r,tCY+rH+bH-r,tCX-cW//3-10+r,tCY+rH+bH+r)
     if app.endsBendsOn:
-        canvas.create_oval(tCX-cW//3-10-r2,tCY+rH+bH-r2,tCX-cW//3-10+r2,tCY+rH+bH+r2,fill="black" )
+        canvas.create_oval(tCX-cW//3-10-r2,tCY+rH+bH-r2,
+        tCX-cW//3-10+r2,tCY+rH+bH+r2,fill="black" )
     canvas.create_text(tCX-cW//3+30,tCY+rH+bH, text = "On")
     canvas.create_oval(tCX-cW//3-10-r,tCY+rH+2*bH-r,tCX-cW//3-10+r,tCY+rH+2*bH+r)
     if not app.endsBendsOn:
-        canvas.create_oval(tCX-cW//3-10-r2,tCY+rH+2*bH-r2,tCX-cW//3-10+r2,tCY+rH+2*bH+r2,fill ="black")
+        canvas.create_oval(tCX-cW//3-10-r2,
+        tCY+rH+2*bH-r2,tCX-cW//3-10+r2,tCY+rH+2*bH+r2,fill ="black")
     canvas.create_text(tCX-cW//3+30,tCY+rH+2*bH, text = "Off")
-
+     
 def drawDisplayControls2(app, canvas):
     bH = 30 #button half height
     cW = app.width*.25 #nominal console column width
@@ -628,16 +788,23 @@ def drawDisplayControls3(app, canvas):
     canvas.create_text(tCX-1.7*cW,tCY+rH, text = "Image")
     canvas.create_oval(tCX-1.7*cW-10-r,tCY+rH+bH-r,tCX-1.7*cW-10+r,tCY+rH+bH+r)
     if app.imageDisplay == "outline": 
-        canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+bH-r2,tCX-1.7*cW-10+r2,tCY+rH+bH+r2, fill= "black")
+        canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+bH-r2,
+        tCX-1.7*cW-10+r2,tCY+rH+bH+r2, fill= "black")
     canvas.create_text(tCX-1.7*cW+30,tCY+rH+bH, text = "Outline")
     canvas.create_oval(tCX-1.7*cW-10-r,tCY+rH+2*bH-r,tCX-1.7*cW-10+r,tCY+rH+2*bH+r)
     if app.imageDisplay == "original":
-        canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+2*bH-r2,tCX-1.7*cW-10+r2,tCY+rH+2*bH+r2,fill="black")
+        canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+2*bH-r2,
+        tCX-1.7*cW-10+r2,tCY+rH+2*bH+r2,fill="black")
     canvas.create_text(tCX-1.7*cW+30,tCY+rH+2*bH, text = "Original")
     canvas.create_oval(tCX-1.7*cW-10-r,tCY+rH+3*bH-r,tCX-1.7*cW-10+r,tCY+rH+3*bH+r)
     if app.imageDisplay == "none":
-        canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+3*bH-r2,tCX-1.7*cW-10+r2,tCY+rH+3*bH+r2,fill="black")
+        canvas.create_oval(tCX-1.7*cW-10-r2,tCY+rH+3*bH-r2,
+        tCX-1.7*cW-10+r2,tCY+rH+3*bH+r2,fill="black")
     canvas.create_text(tCX-1.7*cW+22,tCY+rH+3*bH, text = "None")
+    canvas.create_text(100,700,
+    text =f'Selected Coord(x,y): {app.selX}, {app.selY}')
+    canvas.create_text(40,675, 
+    text=f'Threshold: {app.threshold}    {app.file}', anchor = 'w')
 
 def drawNetworkControls(app, canvas):
     r = 11 #radio button radius
@@ -674,10 +841,8 @@ def drawGrid(app, canvas):
         canvas.create_line(x,app.margin,x,bEdge, width = 2)
     for y in range(app.margin,rEdge, app.pixH*5):
         canvas.create_line(app.margin,y,bEdge,y, width = 2)
-    canvas.create_text(100,700, text =f'Selected Coord(x,y): {app.selX}, {app.selY}')
-
+    
 def drawImage(app, canvas):
-    canvas.create_text(40,675, text=f'Threshold: {app.threshold}    {app.file}', anchor = 'w')
     if app.imageDisplay == "none": return
     if app.imageDisplay == "outline":
         midsList, outlineList = getMidPoints(app)
@@ -695,7 +860,8 @@ def drawImage(app, canvas):
             x=app.margin+x*app.pixW
             y=app.margin+y*app.pixH
             canvas.create_rectangle(x,y,x+app.pixW,y+app.pixH, fill=color)
-        drawGrid(app,canvas)
+        if app.welcome == 0:
+            drawGrid(app,canvas)
 
 #https://www.cs.cmu.edu/~112/notes/notes-graphics.html#customColors
 def rgbString(r, g, b):
@@ -754,12 +920,126 @@ def drawPrediction(app, canvas):
     canvas.create_rectangle(app.width*.18,app.height*.071,app.width*.27,app.height*.028)
     canvas.create_text(app.width*.225,app.height*.05, text= "Predict")
     canvas.create_text(app.width*.35, app.height*.01,text= "Prediction:", anchor = "w")
+    canvas.create_rectangle(app.width*.55,app.height*.071,app.width*.81,app.height*.028)
     if app.predictionMade:
         canvas.create_text(app.width*.4,app.height*.05, text=f"{app.predNum} ({app.confidence} % conf.)", font ="times 18 bold")
-        canvas.create_rectangle(app.width*.55,app.height*.071,app.width*.81,app.height*.028)
         for i in range(len(app.prediction)):
             canvas.create_rectangle(app.width*.56 +i*20,app.height*.07,app.width*.56 +i*20+10, app.height*.07-app.prediction[i]*40, fill="red")
             canvas.create_text(app.width*.56+i*20 +5, app.height*.08,text= f"{i}")
+
+def drawWelcome(app, canvas):
+    if app.welcome == 0: return
+    if app.welcome == 1: drawWelcome1(app,canvas)
+    if app.welcome == 2: drawWelcome2(app,canvas)
+    if app.welcome == 3: drawWelcome3(app,canvas)
+    if app.welcome == 4: drawWelcome4(app,canvas)
+    if app.welcome == 5: drawWelcome5(app,canvas)
+
+def drawWelcome1(app,canvas):
+    canvas.create_rectangle(app.width*.05, app.height*.05, app.width*.95, app.height*.95, fill = "white")
+    canvas.create_text(app.width*.5, app.height*.08, text = "Learn to Fool a Neural Network!", font = "Times 20 bold")
+    intro = '''
+    In this game, you'll learn how a Neural Network identifies 
+    characters by fooling it. 
+
+    The game will present you several sample images of a numeral that the network 
+    has identified with high confidence.  
+    
+    Your job is to modify the character in a way that would change its meaning 
+    to a human but leave it unchanged to the Neural Network.
+
+    In AI, this is called an "adversarial attack."
+
+    If you succeed, you can even save your creation as a png and display to 
+    your friends as evidence you fooled the robot!
+
+    '''
+    canvas.create_text(app.width*.5, app.height*.4, \
+        text = intro, font = "Times 12")
+    canvas.create_text(app.width*.5, 810, text = "Press 'n' for the next page", 
+    font = "Times 12")
+    canvas.create_text(app.width*.5, 830, \
+        text = "or any other key to go directly to the game.", font = "Times 12")
+
+def drawWelcome2(app,canvas):
+    canvas.create_rectangle(app.width*.05, app.height*.05, app.width*.95, app.height*.95, fill = "white")
+    drawImage(app,canvas)
+    
+    body = '''
+    The "standard" MNIST Neural Networks input all 784 pixels from the images and perform 
+    a statistical analysis of whether a given lightness of those pixels in those locations 
+    is associated with a given number.
+
+    These networks use no abstract concepts like "Is the character formed of straight or 
+    curved lines?" or "Is it open or closed?"
+
+    And that's where you have a distinct advantage.
+    '''
+    canvas.create_text(app.width*.5, 667, \
+        text = body, font = "Times 12", anchor = "n")
+    canvas.create_text(app.width*.5, 860, text = "Press 'n' for the next page", 
+    font = "Times 12")
+    canvas.create_text(app.width*.5, 880, \
+        text = "or any other key to go directly to the game.", font = "Times 12")
+
+def drawWelcome3(app,canvas):
+    canvas.create_rectangle(app.width*.05, app.height*.05, app.width*.95, app.height*.95, fill = "white")
+    drawImage(app,canvas)
+    drawTrace(app,canvas)
+    
+    body = '''
+    The "Vectorizer" of this application can help, by algorithmicly tracing 
+    the curves of the number.
+    
+    But the truth is the human eye does the job best of all...
+
+    Press 'n' to see the above eight get transformed into a three
+    '''
+    canvas.create_text(app.width*.5, 667, \
+        text = body, font = "Times 12", anchor = "n")
+    canvas.create_text(app.width*.5, 860, text = "Press 'n' for the next page", 
+    font = "Times 12")
+    canvas.create_text(app.width*.5, 880, \
+        text = "or any other key to go directly to the game.", font = "Times 12")
+
+def drawWelcome4(app,canvas):
+    canvas.create_rectangle(app.width*.05, app.height*.05, app.width*.95, app.height*.95, fill = "white")
+    drawImage(app,canvas)
+    
+    body = '''
+    By clearing those 14 pixels, we've transformed an eight into a three, but that's not how 
+    the neural network sees it.  To it, over 98% percent of the pixels are the same and 
+    statistically they still look very much like the other 5000 eights it has been trained on.  
+    In other words, it may well be a three to a human, but it's not a three as a human normally 
+    draws it, for reasons we might not even notice.
+
+    Bottom line, if you want to survive a robot apocalypse, pass notes that are modified characters 
+    rather than ones you wrote yourself :) 
+    '''
+    canvas.create_text(app.width*.5, 667, \
+        text = body, font = "Times 12", anchor = "n")
+    canvas.create_text(app.width*.5, 860, text = "Press 'n' for the next page", 
+    font = "Times 12")
+    canvas.create_text(app.width*.5, 880, \
+        text = "Or any other key to go directly to the game.", font = "Times 12")
+
+def drawWelcome5(app,canvas):
+    canvas.create_rectangle(app.width*.05, app.height*.05, app.width*.95, app.height*.95, fill = "white")
+    drawImage(app,canvas)
+    drawTrace(app,canvas)
+    
+    body = '''
+    As you can see here, the trace algorithm does a better job of finding the patterns in words 
+    that are more like the ways that humans identify numerals, but it's not yet as good as a human.
+
+    Not yet anyway...
+
+    We got you started with the first one, see how we did and try your luck with the rest!
+    '''
+    canvas.create_text(app.width*.5, 667, \
+        text = body, font = "Times 12", anchor = "n")
+    canvas.create_text(app.width*.5, 880, \
+        text = "Press any key to go directly to the game.", font = "Times 12")
 
 def timerFired(app):
     variables(app)
@@ -768,6 +1048,15 @@ def timerFired(app):
         findEnds(app) #TODO hard to imagine this should be here
         getTrace(app) #TODO put these in the right places
         #findEnds(app)
+    if app.welcome == 4:
+        #startTime = time.time()
+        #below presumes we're using 8/17.png for drawWelcome Demo
+        dissapearingPixels = [(11,11),(12,11),(12,12),(13,12),(10,17),(11,17),(11,18),(9,18),(9,17),(11,12),(10,16),(15,15),(11,13),(13,11)]
+        app.i += 1
+        if app.i < len(dissapearingPixels):
+            index = getIndex(dissapearingPixels[app.i][0],dissapearingPixels[app.i][1])
+            app.pixels[index] = 2
+
 
 def drawCharacter(app, canvas):
     drawImage(app, canvas)
@@ -781,12 +1070,20 @@ def drawCharacter(app, canvas):
 def redrawAll(app, canvas):
     drawGrid(app,canvas)
     drawButtons(app,canvas)
-    drawDisplayControls(app,canvas)
-    drawDisplayControls2(app,canvas)
-    drawDisplayControls3(app,canvas)
+    drawFileButtons(app, canvas)
     drawCharacter(app,canvas)
-    drawPrediction(app,canvas)
-    drawNetworkControls(app,canvas)
+    drawGameButton(app,canvas)
+    if app.welcome != 0:
+        drawWelcome(app, canvas)
+    elif app.gameMode == True:
+        drawGameInfo(app, canvas)
+    else:
+        drawDisplayControls(app,canvas)
+        drawDisplayControls2(app,canvas)
+        drawDisplayControls3(app,canvas)
+        drawPrediction(app,canvas)
+        drawNetworkControls(app,canvas)
+    
     
 def main():
     #cs112_s21_week4_linter.lint()

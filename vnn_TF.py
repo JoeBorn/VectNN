@@ -32,15 +32,17 @@ def trainStandardNN(app):
   #print ("dataframe.head() \n",dataframe.head()) #prints out the table
   (train_ds) = df_to_dataset(dataframe, batch_size = 512) 
   (test_ds) = df_to_dataset(dataframe_testing, batch_size = 500)
-  app.StandardModel = tf.keras.models.Sequential([
+  app.standardModel = tf.keras.models.Sequential([
   tf.keras.layers.Dense(512, activation=tf.nn.relu),
   tf.keras.layers.Dense(10, activation=tf.nn.softmax)])
-  app.StandardModel.compile(optimizer='adam',
+  app.standardModel.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
-  app.StandardModel.fit(train_ds, epochs=10, validation_data=test_ds)
-  #app.StandardModel.save('standardModel.h5')
+  app.standardModel.fit(train_ds, epochs=10, validation_data=test_ds)
+  #app.standardModel.save('standardModel.h5')
 
+#The Vector NN Training.  These are separate so different optimizations
+#can be applied for compiling and optimizing the models
 def trainVNN(app):
   csv_file = 'mnist_VNN_training.csv'
   csv_test_file = 'mnist_VNN_testing.csv'
@@ -58,7 +60,6 @@ def trainVNN(app):
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
   app.VNNmodel.fit(train_ds, epochs=180, validation_data=test_ds)
-
 
 
 # A utility method to create a tf.data dataset from a Pandas Dataframe, 
@@ -95,7 +96,6 @@ def writeSample(app):
                 traceWriter.writerow(traceConverter(app))
 
 
-
 def traceConverter(app, i=0):
   hasGap = False
   result = [i] + [0]*26
@@ -123,8 +123,8 @@ def predictStandard(app):
   dataframe_samples = dataframe_samples.fillna(value=0)
   (sample_ds) = df_to_dataset(dataframe_samples, shuffle=False,batch_size = 1)
   print("Raw SoftMax Output:")
-  #app.StandardModel = tf.keras.models.load_model('standardModel.h5')
-  predictions = app.StandardModel.predict(sample_ds)
+  #app.standardModel = tf.keras.models.load_model('standardModel.h5')
+  predictions = app.standardModel.predict(sample_ds)
   print(type(predictions[0]))
   print(predictions[0])
   return predictions[0]
