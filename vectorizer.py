@@ -1,5 +1,12 @@
 '''copyright 2021 Joe Born
-all rights reserved '''
+all rights reserved 
+
+project based on the mnist character database:
+https://en.wikipedia.org/wiki/MNIST_database
+
+images used in this project have been taken from this database
+with additional ones contributed by the Author
+'''
 #import cs112_s21_week4_linter
 from cmu_112_graphics import *
 from vnn_TF import *
@@ -33,18 +40,21 @@ def appStarted(app):
     app.gameMode = False
     app.welcome = 0
     app.showDemo = True
+    app.thresholdAdjTried = False
     app.gameFileIndex = 0
     app.i = 0
+    #0 is black, 255 is white, on pngs, letters are light on black background
+    #This is reversed when displayed
+    app.threshold = 120   # lightness threshold to determine edges of chars
     app.waitToAdvance = False
     variables(app)
     findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-    trainStandardNN(app)
-    trainVNN(app)
+    #trainStandardNN(app)
+    #trainVNN(app)
     #createVNNCSVFile(app)
     #createThetaCSVFile(app)
-
 
 def traceConverter(app, i=0):
     hasGap = False
@@ -86,9 +96,7 @@ def makeStandardPrediction(app):
 def variables(app):
     app.pixW = (app.width - 2*app.margin)//app.picWidth
     app.pixH = (app.height - app.margin -app.botMargin)//app.picHeight
-    #0 is black, 255 is white, on pngs, letters are light on black background
-    #This is reversed when displayed
-    app.threshold = 120   # lightness threshold to determine edges of chars
+    
     #imagefile and standard NN confidence or original image store in dict
     app.gameFiles = \
     {0:['imageFiles/8/17.png',.95], 1:['imageFiles/0/55.png',
@@ -105,22 +113,26 @@ def roundHalfUp(d):
 def openFile(app):
     #https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
     Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-    app.file = filedialog.askopenfilename() # show an "Open" dialog box and return the path to the selected file
-    app.img = Image.open(app.file)
-    app.pixels = list(app.img.getdata())
-    findEnds(app) #TODO 
-    getMidPoints(app)
-    getTrace(app)
-    app.predictionMade = False
-
+    try:
+        app.file = filedialog.askopenfilename() # show an "Open" dialog box and return the path to the selected file
+        app.img = Image.open(app.file)
+        app.pixels = list(app.img.getdata())
+        findEnds(app) #TODO 
+        getMidPoints(app)
+        getTrace(app)
+        app.predictionMade = False
+    except:
+        print("problem with: ", app.file)
 def saveFile(app):
     #https://pythonbasics.org/tkinter-filedialog/
-    Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-    app.newFile = filedialog.asksaveasfilename() # show an "Open" dialog box and return the path to the selected file
-    savedImg =Image.new("L",(28,28))
-    savedImg.putdata(app.pixels)
-    savedImg.save(app.newFile)
-
+    try:
+        Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+        app.newFile = filedialog.asksaveasfilename() # show an "Open" dialog box and return the path to the selected file
+        savedImg =Image.new("L",(28,28))
+        savedImg.putdata(app.pixels)
+        savedImg.save(app.newFile)
+    except:
+        print("problem with: ", app.newFile)
 #grid details derived from: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
 #outer pixels are not part of the mnist dbase, so they are excluded here too
 def pointInGrid(app,x,y):
@@ -349,11 +361,7 @@ def getGridCoords(app,x,y): #view to model
 def getCellUpperLeft(app,y, x):#model to view
     x1 = app.margin + x*app.pixW
     y1 = app.margin + y*app.pixH
-    return(x1,y1)
-
-def drawSelection(app, canvas):
-    (x1,y1) = getCellUpperLeft(app,app.selY, app.selX)
-    canvas.create_rectangle(x1,y1,x1+app.pixW,y1+app.pixH, width= 3, fill = None)       
+    return(x1,y1)     
 
 def getMidPoints(app): #finds the midpoints, taking horizontal slices
     #pixels = list(app.img.getdata()) # returns one long flattened list: row1, row2, etc
@@ -418,13 +426,14 @@ def getStartPoint(app): #returns starting point to trace
 
 #This function produces the trace list that attempts to trace the character
 def getTrace(app):
+    findEnds(app)
     app.trace = []
     outOfOrder = False
+    midsList, outlineList = getMidPoints(app)
     (startX, startY) = getStartPoint(app)#start with the end closest to 0,0
     if (startX,startY) == (None,None):return
     app.trace.append((startX, startY))
     #connect to farthest contiguous point
-    midsList, outlineList = getMidPoints(app)
     if len(midsList) < 2: return
     while len(midsList) > 1:
         traceIndex = app.trace.index((startX,startY))
@@ -457,9 +466,21 @@ def getTrace(app):
                     outOfOrder = True
                 app.trace.append((startX, startY))
         midsList = removeIntermediatePoints(app,midsList)
+    #if app.trace.count("gap") > 2 and app.thresholdAdjTried == False:
+    #    print("in tat == F:",app.trace)
+    #    adjustThreshold(app)
     if len(app.trace) > 1:
         closeTheLoop(app)
         reorderIfNeeded(app, outOfOrder)
+    app.thresholdAdjTried = False #resetting the threshold reset
+    print("at end of trace: ", app.trace)
+
+def adjustThreshold(app):
+    app.threshold = 10
+    app.thresholdAdjTried = True
+    getTrace(app)
+    app.threshold = 120
+
 
 def removeIntermediatePoints(app,midsList):
     #maxDist is dist between this x and the "prior" X.  Whereas lastDist
@@ -657,7 +678,10 @@ def keyPressed(app, event):
         app.i = 0
     else:
         app.welcome = 0
-    
+
+def drawSelection(app, canvas):
+    (x1,y1) = getCellUpperLeft(app,app.selY, app.selX)
+    canvas.create_rectangle(x1,y1,x1+app.pixW,y1+app.pixH, width= 3, fill = None)  
         
 def drawButtons(app, canvas):
     bW = 40 #button half width
