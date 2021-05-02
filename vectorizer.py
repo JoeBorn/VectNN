@@ -413,7 +413,11 @@ def getStartPoint(app): #returns starting point to trace
                 (startX, startY) = (x,y)
         app.ends.remove((startX,startY))
         return (startX, startY)
+    else: return (None, None)
+'''
+    #trying without returning bends
     #if no end, start with the bend closest to 0,0
+
     elif app.bends != []:
         for (x, y) in app.bends:
             dist = math.sqrt(y**2 + x**2)
@@ -422,7 +426,7 @@ def getStartPoint(app): #returns starting point to trace
                 (startX, startY) = (x,y)
         app.bends.remove((startX,startY))
         return (startX, startY)
-    else: return (None, None)
+'''    
 
 #This function produces the trace list that attempts to trace the character
 def getTrace(app):
@@ -430,33 +434,34 @@ def getTrace(app):
     app.trace = []
     outOfOrder = False
     midsList, outlineList = getMidPoints(app)
+    if len(midsList) < 2: return
     (startX, startY) = getStartPoint(app)#start with the end closest to 0,0
-    if (startX,startY) == (None,None):return
+    if (startX,startY) == (None,None): 
+        (startX,startY) = upperLeftMidpoint(midsList)
     app.trace.append((startX, startY))
     #connect to farthest contiguous point
-    if len(midsList) < 2: return
     while len(midsList) > 1:
-        traceIndex = app.trace.index((startX,startY))
+        startIndex = app.trace.index((startX,startY))
         maxDistance = 0
         for index in range(len(midsList)):
             if areContiguous(app,(startX, startY),midsList[index]):
                 (x,y) = midsList[index] 
                 #if no prior coords, max dist from most recent coord
-                if traceIndex == 0 or app.trace[traceIndex-1] == 'gap':
+                if startIndex == 0 or app.trace[startIndex-1] == 'gap':
                     dist = math.sqrt((startX - x)**2 +(startY - y)**2)
                 else: #use prior coord where one exists
-                    (priorX,priorY)= app.trace[traceIndex - 1]
+                    (priorX,priorY)= app.trace[startIndex - 1]
                     dist = math.sqrt((priorX - x)**2 +(priorY - y)**2)
                 if dist > maxDistance:
                     maxDistance = dist
                     (endX, endY) = (x,y)
-        if maxDistance >= 1: 
+        if maxDistance >= 1 and (startX,startY) != (endX,endY): 
+            #new connection point found
             app.trace.append((endX,endY))
-            if (startX,startY) != (endX,endY): # it found a new connection point
-                (startX,startY) = (endX,endY)
+            (startX,startY) = (endX,endY)
         else: #failing that, make sure all ends/bends are connected
             (startX,startY)= getStartPoint(app)
-            if (startX,startY) == (None,None): break #if ends/bends gone,we're done
+            if (startX,startY) == (None,None): break #if ends/bends gone, we're done
             #TODO: sometimes leaves ends unconnected, see notes on 4/336.png
             else:
                 #trace should have start point in upper left
@@ -474,7 +479,7 @@ def getTrace(app):
         closeTheLoop(app)
         reorderIfNeeded(app, outOfOrder)
     app.thresholdAdjTried = False #resetting the threshold reset
-    #print("at end of trace: ", app.trace)
+    print("at end of trace: ", app.trace)
 
 def adjustThreshold(app):
     app.threshold = 10
@@ -482,6 +487,14 @@ def adjustThreshold(app):
     getTrace(app)
     app.threshold = 120
 
+def upperLeftMidpoint(midsList):
+    minDist = 1000
+    for i in range(len(midsList)):
+        dist = distance((0,0),midsList[i])
+        if dist < minDist:
+            minDist = dist
+            (x,y) = midsList[i]
+    return (x,y)
 
 def removeIntermediatePoints(app,midsList):
     #maxDist is dist between this x and the "prior" X.  Whereas lastDist
@@ -648,22 +661,23 @@ def findEnds(app):
     allRorL = True # all contMidEnds are on one side of contMidStart
     allUorD = True # all contMidEnds are above or all are below contMidStart
     allConnected = True
-    while i < len(contMidStart):
-        #it's a new start point or the end of the list
-        if contMidStart[i] != contMidStart[i-1] or i == len(contMidStart)-1:
+    for i in range(1,len(contMidStart)):
+        #it's a new start point, evaluate prior start point
+        if contMidStart[i] != contMidStart[i-1]:
             if (allRorL or allUorD):
                 if not allConnected:
                     app.bends.append(contMidStart[i-1])
                 else: # if it has only one pair, it's an end
                     app.ends.append(contMidStart[i-1]) 
-            i += 1
             allRorL = True # reset checks
             allUorD = True
-            allConnected = True 
-        else: #if it's an additional mid connection then perform the checks.
+            allConnected = True
+        #look ahead and perform checks
+        j = i
+        while j < len(contMidStart) and contMidStart[i] ==contMidStart[j]:
             (x1,y1) = contMidStart[i] 
-            (x2,y2) = contMidEnd[i-1]
-            (x3,y3) = contMidEnd[i]
+            (x2,y2) = contMidEnd[i]
+            (x3,y3) = contMidEnd[j]
             if (x2-x1)*(x3-x1) <= 0: 
                 allRorL = False #they aren't all to one side
             if (y2-y1)*(y3-y1) <= 0:
@@ -671,8 +685,16 @@ def findEnds(app):
             if not areContiguous(app,(x2,y2),(x3,y3)):
                 allConnected = False #the connections aren't connected to each other
                 # ie it's not an end, just a side of a curve, a "bend"
-            i += 1
-    print(app.ends,app.bends)
+                #TODO this is pretty restrictive and may need to be loosened
+                # see 2/5.png for a case where overly restrictive
+            j += 1
+    #finally, handle end case
+    if (allRorL or allUorD):
+        if not allConnected:
+            app.bends.append(contMidStart[i-1])
+        else: # if it has only one pair, it's an end
+            app.ends.append(contMidStart[i-1])   
+    print("ends,bends: ", app.ends,app.bends)
 
 def keyPressed(app, event):
     pages = 5
