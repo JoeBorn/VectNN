@@ -404,7 +404,9 @@ def getCoord(index, width= 28):
     x = index % width
     return x,y 
 
-def getStartPoint(app): #returns starting point to trace
+#returns starting point to trace
+#returning bends seemed to have no benefit
+def getStartPoint(app): 
     minDist = 10**10
     if app.ends != []:
         for (x,y) in app.ends:
@@ -416,30 +418,17 @@ def getStartPoint(app): #returns starting point to trace
         app.ends.remove((startX,startY))
         return (startX, startY)
     else: return (None, None)
-'''
-    #trying without returning bends
-    #if no end, start with the bend closest to 0,0
-
-    elif app.bends != []:
-        for (x, y) in app.bends:
-            dist = math.sqrt(y**2 + x**2)
-            if dist < minDist:
-                minDist = dist
-                (startX, startY) = (x,y)
-        app.bends.remove((startX,startY))
-        return (startX, startY)
-'''    
 
 #This function produces the trace list that attempts to trace the character
 def getTrace(app, startCoord = None):
     findEnds(app)
     app.trace = []
-    outOfOrder = False
     midsList, outlineList = getMidPoints(app)
     if len(midsList) < 2: return
     #for redoing when trace is found to be out out of order
     if startCoord != None:
         (startX, startY) = startCoord
+        app.trace.append((startX,startY))
     else: #'normal' getTrace operation
         (startX, startY) = getStartPoint(app)#start with the end closest to 0,0
         if (startX,startY) == (None,None): 
@@ -485,7 +474,7 @@ def getTrace(app, startCoord = None):
         adjustThreshold(app)
     if len(app.trace) > 1:
         closeTheLoop(app)
-        #reorderIfNeeded(app)
+        reorderIfNeeded(app)
     app.thresholdAdjTried = False #resetting the threshold reset
     app.reorderTried = False
     print("at end of trace: ", app.trace)
@@ -569,6 +558,7 @@ def reorderIfNeeded(app):
                 newStartingCoord = app.trace[i-1]
                 app.reorderTried = True
                 getTrace(app,(newStartingCoord))
+                return
             else: return
     if distance(app.trace[-1],(0,0)) < distance(app.trace[0],(0,0)):
         newStartingCoord = app.trace[-1]
