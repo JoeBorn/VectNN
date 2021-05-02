@@ -23,7 +23,8 @@ def appStarted(app):
     app.botMargin = 300
     app.mouseMovedDelay = 10
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
-    app.file = 'imageFiles/2/5.png'
+    app.file = 'C:/mnist/mnist_all_files/testing/8/84.png'
+    #app.file = 'imageFiles/2/5.png'
     app.img = Image.open(app.file)
     app.pixels = list(app.img.getdata())
     app.drawingMode = None
@@ -41,6 +42,7 @@ def appStarted(app):
     app.welcome = 0
     app.showDemo = True
     app.thresholdAdjTried = False
+    app.reorderTried = False
     app.gameFileIndex = 0
     app.i = 0
     #0 is black, 255 is white, on pngs, letters are light on black background
@@ -429,19 +431,25 @@ def getStartPoint(app): #returns starting point to trace
 '''    
 
 #This function produces the trace list that attempts to trace the character
-def getTrace(app):
+def getTrace(app, startCoord = None):
     findEnds(app)
     app.trace = []
     outOfOrder = False
     midsList, outlineList = getMidPoints(app)
     if len(midsList) < 2: return
-    (startX, startY) = getStartPoint(app)#start with the end closest to 0,0
-    if (startX,startY) == (None,None): 
-        (startX,startY) = upperLeftMidpoint(midsList)
-    app.trace.append((startX, startY))
+    #for redoing when trace is found to be out out of order
+    if startCoord != None:
+        (startX, startY) = startCoord
+    else: #'normal' getTrace operation
+        (startX, startY) = getStartPoint(app)#start with the end closest to 0,0
+        if (startX,startY) == (None,None): 
+            (startX,startY) = upperLeftMidpoint(midsList)
+        app.trace.append((startX, startY))
     #connect to farthest contiguous point
     while len(midsList) > 1:
-        startIndex = app.trace.index((startX,startY))
+        if (startX,startY) in app.trace:
+            startIndex = app.trace.index((startX,startY))
+        else: startIndex = 0
         maxDistance = 0
         for index in range(len(midsList)):
             if areContiguous(app,(startX, startY),midsList[index]):
@@ -459,26 +467,27 @@ def getTrace(app):
             #new connection point found
             app.trace.append((endX,endY))
             (startX,startY) = (endX,endY)
-        else: #failing that, make sure all ends/bends are connected
+        else: #failing that, find new starting point
+            #bearing in mind, midList and ends have have been paired down
+            midsList.pop(0)# that point failed to find a match
             (startX,startY)= getStartPoint(app)
-            if (startX,startY) == (None,None): break #if ends/bends gone, we're done
-            #TODO: sometimes leaves ends unconnected, see notes on 4/336.png
-            else:
-                #trace should have start point in upper left
-                if distance(app.trace[0],(0,0)) > distance((endX,endY),(0,0)):
-                    app.trace.reverse() 
-                app.trace.append("gap")
-                if distance(app.trace[0],(0,0)) > distance((startX,startY),(0,0)):
-                    outOfOrder = True
-                app.trace.append((startX, startY))
+            if (startX,startY) == (None,None): 
+                (startX,startY) = upperLeftMidpoint(midsList)
+            if (startX,startY) == (None,None): #no more mids or ends
+                break
+            #TODO: sometimes leaves ends unconnected, see notes on 4/336.png.  see if this is still true
+            app.trace.append("gap") # at this point it had exhausted all cont connections but found a new point
+            app.trace.append((startX, startY))
         midsList = removeIntermediatePoints(app,midsList)
-    #if app.trace.count("gap") > 2 and app.thresholdAdjTried == False:
-    #    print("in tat == F:",app.trace)
-    #    adjustThreshold(app)
+        if midsList == None: break
+    if app.trace.count("gap") > 2 and app.thresholdAdjTried == False:
+        #print("in tat == F:",app.trace)
+        adjustThreshold(app)
     if len(app.trace) > 1:
         closeTheLoop(app)
-        reorderIfNeeded(app, outOfOrder)
+        #reorderIfNeeded(app)
     app.thresholdAdjTried = False #resetting the threshold reset
+    app.reorderTried = False
     print("at end of trace: ", app.trace)
 
 def adjustThreshold(app):
@@ -488,6 +497,7 @@ def adjustThreshold(app):
     app.threshold = 120
 
 def upperLeftMidpoint(midsList):
+    if midsList == []: return (None,None)
     minDist = 1000
     for i in range(len(midsList)):
         dist = distance((0,0),midsList[i])
@@ -500,7 +510,8 @@ def removeIntermediatePoints(app,midsList):
     #maxDist is dist between this x and the "prior" X.  Whereas lastDist
     #is the distance between the most recent two trace points
     if len(app.trace) <2: return
-    if app.trace[-2] == "gap" or app.trace[-1] == "gap": return midsList
+    if app.trace[-2] == "gap" or app.trace[-1] == "gap": 
+        return midsList
     startX,startY = app.trace[-2]
     endX,endY = app.trace[-1]
     distToPrior = distance(app.trace[-1],app.trace[-2])
@@ -517,6 +528,9 @@ def removeIntermediatePoints(app,midsList):
                 if (x,y) in app.ends: app.ends.remove((x,y))
                 if (x,y) in app.bends: app.bends.remove((x,y))
             else: index += 1
+        #TODO: on one hand this isn't aggressive enough to elim 2/5 problem
+        #but I'm not convinced modifying would make better or worse
+        #could simply add isConnected(app,(startX,endY),(x,y)) to test/
         elif min(startX,endX) <= x <= max(startX,endX) and \
         min(startY,endY) <= y <= max(startY,endY) and isConnected(app,(endX,endY),(x,y)):
                 midsList.pop(index)    
@@ -546,23 +560,21 @@ def closeTheLoop(app):
                 app.trace.append((xConnection,yConnection))
                 app.trace.append(app.trace[0])
 
-#if start point improperly placed, reverse list
-def reorderIfNeeded(app, outOfOrder):
-    if not outOfOrder:
-        if distance(app.trace[-1],(0,0)) < distance(app.trace[0],(0,0)):
-            app.trace.reverse()
-    '''
-    else: #since oOO, have to find upper left point
-        minDist = distance(app.trace[0],(0,0))
-        for i in range(1,len(app.trace)):
-            if app.trace[i] == "gap":
-                dist = distance(app.trace[i+1],(0,0))
-                if dist < minDist:
-                    minDist = dist
-                    minI = i+1
-        app.trace = app.trace[minI:] + app.trace[:minI]
-    '''
-
+#if start point improperly placed, redo.  See notes related to 3/18 for explanation
+def reorderIfNeeded(app):
+    if app.reorderTried == True: return
+    for i in range(1,len(app.trace)):
+        if app.trace[i] == 'gap':
+            if distance(app.trace[i-1],(0,0)) < distance(app.trace[0],(0,0)):
+                newStartingCoord = app.trace[i-1]
+                app.reorderTried = True
+                getTrace(app,(newStartingCoord))
+            else: return
+    if distance(app.trace[-1],(0,0)) < distance(app.trace[0],(0,0)):
+        newStartingCoord = app.trace[-1]
+        app.reorderTried = True
+        getTrace(app,(newStartingCoord))
+            
 def distance(coord1,coord2):
     #try: 
     (x1,y1) = coord1
