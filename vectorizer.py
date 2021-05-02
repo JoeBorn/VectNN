@@ -141,7 +141,6 @@ def pointInGrid(app,x,y):
 
 
 def mousePressed(app, event): 
-    print(event.x,event.y)
     r = 11 #radio button radius
     if pointInGrid(app,event.x,event.y):
         app.selX, app.selY = getGridCoords(app,event.x,event.y)
@@ -259,6 +258,7 @@ def gameButtonPressed(app):
         getTrace(app)
     else:
         app.predictionMade = False
+        app.waitToAdvance = False
         
 
 def drawingButtonPressed(app,x,y):
@@ -272,7 +272,7 @@ def drawingButtonPressed(app,x,y):
         app.eraserActive = False
     #clear/next button
     if .55*app.width<x<.60*app.width and .73*app.height<y<.78*app.height:
-        if app.gameMode == True: #next button
+        if app.gameMode == True and app.waitToAdvance== True: #next button
             if app.gameFileIndex >= len(app.gameFiles)-1:
                 app.gamePredictHeadline = "Game Over!"
                 app.gamePredictBody = \
@@ -441,9 +441,10 @@ def getTrace(app):
         for index in range(len(midsList)):
             if areContiguous(app,(startX, startY),midsList[index]):
                 (x,y) = midsList[index] 
+                #if no prior coords, max dist from most recent coord
                 if traceIndex == 0 or app.trace[traceIndex-1] == 'gap':
                     dist = math.sqrt((startX - x)**2 +(startY - y)**2)
-                else:
+                else: #use prior coord where one exists
                     (priorX,priorY)= app.trace[traceIndex - 1]
                     dist = math.sqrt((priorX - x)**2 +(priorY - y)**2)
                 if dist > maxDistance:
@@ -473,7 +474,7 @@ def getTrace(app):
         closeTheLoop(app)
         reorderIfNeeded(app, outOfOrder)
     app.thresholdAdjTried = False #resetting the threshold reset
-    print("at end of trace: ", app.trace)
+    #print("at end of trace: ", app.trace)
 
 def adjustThreshold(app):
     app.threshold = 10
@@ -648,6 +649,7 @@ def findEnds(app):
     allUorD = True # all contMidEnds are above or all are below contMidStart
     allConnected = True
     while i < len(contMidStart):
+        #it's a new start point or the end of the list
         if contMidStart[i] != contMidStart[i-1] or i == len(contMidStart)-1:
             if (allRorL or allUorD):
                 if not allConnected:
@@ -670,6 +672,7 @@ def findEnds(app):
                 allConnected = False #the connections aren't connected to each other
                 # ie it's not an end, just a side of a curve, a "bend"
             i += 1
+    print(app.ends,app.bends)
 
 def keyPressed(app, event):
     pages = 5
@@ -1066,16 +1069,14 @@ def drawWelcome5(app,canvas):
         text = "Press any key to go directly to the game.", font = "Times 12")
 
 def timerFired(app):
-    variables(app)
     ML, OL = getMidPoints(app)
     if len(ML) > 1: # don't start drawing until there's something to draw
         findEnds(app) #TODO hard to imagine this should be here
         getTrace(app) #TODO put these in the right places
-        #findEnds(app)
     if app.welcome == 4:
         #startTime = time.time()
         #below presumes we're using 8/17.png for drawWelcome Demo
-        dissapearingPixels = [(11,11),(12,11),(12,12),(13,12),(10,17),(11,17),(11,18),(9,18),(9,17),(11,12),(10,16),(15,15),(11,13),(13,11)]
+        dissapearingPixels = [(11,11),(12,11),(12,12),(13,12),(10,17),(11,17),(11,18),(9,17),(11,12),(10,16),(15,15),(11,13),(13,11)]
         app.i += 1
         if app.i < len(dissapearingPixels):
             index = getIndex(dissapearingPixels[app.i][0],dissapearingPixels[app.i][1])
