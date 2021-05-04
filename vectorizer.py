@@ -7,11 +7,10 @@ https://en.wikipedia.org/wiki/MNIST_database
 images used in this project have been taken from this database
 with additional ones contributed by the Author
 '''
-#import cs112_s21_week4_linter
 from cmu_112_graphics import *
 from vnn_TF import *
 from vnn_fileParser import *
-import math, decimal, time
+import math, decimal, copy
 from PIL import Image 
 
 def appStarted(app):
@@ -23,8 +22,7 @@ def appStarted(app):
     app.botMargin = 300
     app.mouseMovedDelay = 10
     app.offset = app.margin + 10 # from 0,0 to the center of a cell
-    app.file = 'C:/mnist/mnist_all_files/testing/8/84.png'
-    #app.file = 'imageFiles/2/5.png'
+    app.file = 'imageFiles/2/5.png'
     app.img = Image.open(app.file)
     app.pixels = list(app.img.getdata())
     app.drawingMode = None
@@ -50,13 +48,12 @@ def appStarted(app):
     app.threshold = 120   # lightness threshold to determine edges of chars
     app.waitToAdvance = False
     variables(app)
-    findEnds(app) #TODO 
     getMidPoints(app)
     getTrace(app)
-    #trainStandardNN(app)
-    #trainVNN(app)
-    #createVNNCSVFile(app)
-    #createThetaCSVFile(app)
+    trainStandardNN(app)
+    trainVNN(app)
+    #createVNNCSVFile(app) #used for creating new CSV files used to train the network
+    #createThetaCSVFile(app) #used for creating new CSV files used to train the network
 
 def traceConverter(app, i=0):
     hasGap = False
@@ -76,6 +73,8 @@ def traceConverter(app, i=0):
             hasGap = True
             if app.trace[i-1] == app.trace[0]:
                 result[1] = 28 # add "closed" feature to array
+    result[25] = len(app.ends)
+    result[26] = len(app.bends)
     return result[:36]
 
 
@@ -98,7 +97,6 @@ def makeStandardPrediction(app):
 def variables(app):
     app.pixW = (app.width - 2*app.margin)//app.picWidth
     app.pixH = (app.height - app.margin -app.botMargin)//app.picHeight
-    
     #imagefile and standard NN confidence or original image store in dict
     app.gameFiles = \
     {0:['imageFiles/8/17.png',.95], 1:['imageFiles/0/55.png',
@@ -111,22 +109,20 @@ def roundHalfUp(d):
     # See other rounding options here:
     # https://docs.python.org/3/library/decimal.html#rounding-modes
     return int(decimal.Decimal(d).to_integral_value(rounding=rounding))
-
+#https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
 def openFile(app):
-    #https://stackoverflow.com/questions/3579568/choosing-a-file-in-python-with-simple-dialog
     Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
     try:
         app.file = filedialog.askopenfilename() # show an "Open" dialog box and return the path to the selected file
         app.img = Image.open(app.file)
         app.pixels = list(app.img.getdata())
-        findEnds(app) #TODO 
         getMidPoints(app)
         getTrace(app)
         app.predictionMade = False
     except:
         print("problem with: ", app.file)
+#https://pythonbasics.org/tkinter-filedialog/
 def saveFile(app):
-    #https://pythonbasics.org/tkinter-filedialog/
     try:
         Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
         app.newFile = filedialog.asksaveasfilename() # show an "Open" dialog box and return the path to the selected file
@@ -135,6 +131,7 @@ def saveFile(app):
         savedImg.save(app.newFile)
     except:
         print("problem with: ", app.newFile)
+
 #grid details derived from: https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
 #outer pixels are not part of the mnist dbase, so they are excluded here too
 def pointInGrid(app,x,y):
@@ -143,33 +140,37 @@ def pointInGrid(app,x,y):
 
 
 def mousePressed(app, event): 
-    r = 11 #radio button radius
-    if pointInGrid(app,event.x,event.y):
-        app.selX, app.selY = getGridCoords(app,event.x,event.y)
-        if app.markerActive:
-            index = getIndex(app.selX,app.selY)
-            app.pixels[index]= 250 # sets pixel to an arbitrary "dark" value
-        if app.eraserActive:
-            index = getIndex(app.selX,app.selY)
-            app.pixels[index]= 2 # sets pixel to an arbitrary "light" value
-    #prediction related functions
-    elif 6 < event.x < 225 and 6 < event.y < 74:
-        predictionButtonsPressed(app,event.x,event.y)
-    #the game button
-    elif (642 < event.x < 738) and (15 < event.y < 85):
-        gameButtonPressed(app)     
-    #other button consoles
-    elif .55*app.width<event.x<.76*app.width and .73*app.height<event.y<.78*app.height:
-        drawingButtonPressed(app, event.x,event.y)
-    elif .05*app.width<event.x<.15*app.width and .75*app.height<event.y<.88*app.height:
-        fileButtonPressed(app,event.x,event.y)
-    elif .19*app.width<event.x<.9*app.width and .88*app.height<event.y<.96*app.height:
-        visualizationButtonPressed(app,event.x,event.y)
-    #"did I fool the AI button"
-    if app.gameMode == True and app.waitToAdvance == False:
-        if 235 < event.x < 385 and 705 < event.y < 750:
-            foolTheAIPressed(app)
+    try:
+        r = 11 #radio button radius
+        if pointInGrid(app,event.x,event.y):
+            app.selX, app.selY = getGridCoords(app,event.x,event.y)
+            if app.markerActive:
+                index = getIndex(app.selX,app.selY)
+                app.pixels[index]= 250 # sets pixel to an arbitrary "dark" value
+            if app.eraserActive:
+                index = getIndex(app.selX,app.selY)
+                app.pixels[index]= 2 # sets pixel to an arbitrary "light" value
+        #prediction related functions
+        elif 6 < event.x < 225 and 6 < event.y < 74:
+            predictionButtonsPressed(app,event.x,event.y)
+        #the game button
+        elif (642 < event.x < 738) and (15 < event.y < 85):
+            gameButtonPressed(app)     
+        #other button consoles
+        elif .55*app.width<event.x<.76*app.width and .73*app.height<event.y<.78*app.height:
+            drawingButtonPressed(app, event.x,event.y)
+        elif .05*app.width<event.x<.15*app.width and .75*app.height<event.y<.88*app.height:
+            fileButtonPressed(app,event.x,event.y)
+        elif .19*app.width<event.x<.9*app.width and .88*app.height<event.y<.96*app.height:
+            visualizationButtonPressed(app,event.x,event.y)
+        #"did I fool the AI button"
+        if app.gameMode == True and app.waitToAdvance == False:
+            if 235 < event.x < 385 and 705 < event.y < 750:
+                foolTheAIPressed(app)
+    except:
+        print("mousePressed Error")
 
+#game button that triggers game results
 def foolTheAIPressed(app):
     app.gamePredictHeadline = f"The Robot is Thinking..."
     app.gamePredictBody = ''
@@ -191,8 +192,6 @@ def foolTheAIPressed(app):
         standardConfidence = app.confidence
         makeVNNPrediction(app)
         vNNPrediction = app.predNum
-        #standardConfidence = 99
-        #vNNPrediction = 8
         if userNumber == vNNPrediction:
             app.gamePredictHeadline = "Yes!"
             app.gamePredictBody = \
@@ -226,6 +225,7 @@ def foolTheAIPressed(app):
             f"out of {app.gameFileIndex + 1} times." + \
             f" press 'Next Image' to try again."
 
+#these are the standard prediction buttons when not in game mode
 def predictionButtonsPressed(app,x,y):
     r = 11
     if .18*app.width<x<.27*app.width and .028*app.height<y<.071*app.height:
@@ -237,6 +237,7 @@ def predictionButtonsPressed(app,x,y):
     elif (x - 30)**2 + (y - 60)**2 < r**2:
         app.network = "VNN"
 
+#game button in upper right that starts the game mode
 def gameButtonPressed(app):
     app.gameMode = not app.gameMode
     if app.gameMode == True:
@@ -274,7 +275,7 @@ def drawingButtonPressed(app,x,y):
         app.eraserActive = False
     #clear/next button
     if .55*app.width<x<.60*app.width and .73*app.height<y<.78*app.height:
-        if app.gameMode == True and app.waitToAdvance== True: #next button
+        if app.gameMode == True: #next button
             if app.gameFileIndex >= len(app.gameFiles)-1:
                 app.gamePredictHeadline = "Game Over!"
                 app.gamePredictBody = \
@@ -290,7 +291,7 @@ def drawingButtonPressed(app,x,y):
             app.file = app.gameFiles[app.gameFileIndex][0] 
             app.img = Image.open(app.file)
             app.pixels = list(app.img.getdata())
-            findEnds(app) #TODO 
+            findEnds(app)
             getMidPoints(app)
             getTrace(app)
             app.predictionMade = False
@@ -300,6 +301,7 @@ def drawingButtonPressed(app,x,y):
             app.trace = []
             app.ends, app.bends = [], []
 
+#the file function buttons
 def fileButtonPressed(app,x,y):
     if app.gameMode == True: return
     if .05*app.width<x<.15*app.width and .76*app.height<y<.80*app.height:
@@ -309,6 +311,7 @@ def fileButtonPressed(app,x,y):
         try: openFile(app)
         except: return
 
+#buttons related to the various vizualizations, trace,midpoints, etc
 def visualizationButtonPressed(app,x,y):
     if app.gameMode == True: return
     r = 11
@@ -337,22 +340,27 @@ def visualizationButtonPressed(app,x,y):
     elif (.21*app.width-x)**2 +(.96*app.height-y)**2 < r**2:
         app.imageDisplay = "none"  
 
+#used only for drawing in the grid
 def mouseDragged(app, event):
-    if app.markerActive:
-        x,y = getGridCoords(app,event.x-5,event.y-5)
-        index = getIndex(x,y)
-        app.pixels[index]= 250 # sets pixel to an arbitrary "light" value
-        x,y = getGridCoords(app,event.x+5,event.y+5)
-        index = getIndex(x,y)
-        app.pixels[index]= 250 
-    if app.eraserActive:
-        x,y = getGridCoords(app,event.x-5,event.y-5)
-        index = getIndex(x,y)
-        app.pixels[index]= 2 # sets pixel to an arbitrary "dark" value
-        x,y = getGridCoords(app,event.x+5,event.y+5)
-        index = getIndex(x,y)
-        app.pixels[index]= 2
+    try:
+        if app.markerActive:
+            x,y = getGridCoords(app,event.x-5,event.y-5)
+            index = getIndex(x,y)
+            app.pixels[index]= 250 # sets pixel to an arbitrary "light" value
+            x,y = getGridCoords(app,event.x+5,event.y+5)
+            index = getIndex(x,y)
+            app.pixels[index]= 250 
+        if app.eraserActive:
+            x,y = getGridCoords(app,event.x-5,event.y-5)
+            index = getIndex(x,y)
+            app.pixels[index]= 2 # sets pixel to an arbitrary "dark" value
+            x,y = getGridCoords(app,event.x+5,event.y+5)
+            index = getIndex(x,y)
+            app.pixels[index]= 2
+    except:
+        print("mouseDragged Error")
 
+#based loosely on http://www.cs.cmu.edu/~112/notes/notes-animations-part3.html#exampleSnake
 def getGridCoords(app,x,y): #view to model
     if not pointInGrid(app,x,y):
         return (-1,-1)
@@ -377,8 +385,7 @@ def getMidPoints(app): #finds the midpoints, taking horizontal slices
             if app.pixels[getIndex(x,y)] > app.threshold and leadEdge == 0: 
                 leadEdge = y # leading edge found
             if app.pixels[getIndex(x,y)] <= app.threshold and leadEdge != 0: #trailing edge found
-                #TODO remove single pixel "turds"
-                trailEdge = y-1 #TODO: Check, but I think because <= app.threshold
+                trailEdge = y-1 
                 if abs(leadEdge-trailEdge) > vertThreshold:
                     midpoint = leadEdge + 1
                     midsList.append((x,midpoint))
@@ -389,7 +396,6 @@ def getMidPoints(app): #finds the midpoints, taking horizontal slices
                     midsList.append((x,midpoint))# 
                 for y in range (leadEdge,y):
                     outlineList.append((x,y))# because <=THRESHOLD trigger
-                #print("x,y,m: ",x,y,midpoint, end = "__")
                 leadEdge = 0      
     return midsList,outlineList
 
@@ -406,22 +412,23 @@ def getCoord(index, width= 28):
 
 #returns starting point to trace
 #returning bends seemed to have no benefit
-def getStartPoint(app): 
+def getStartPoint(app,ends): 
     minDist = 10**10
-    if app.ends != []:
-        for (x,y) in app.ends:
-            #print("tempAppEnds: ", app.ends)
+    if ends != []:
+        for (x,y) in ends:
             dist = math.sqrt(y**2 + x**2)
             if dist < minDist:
                 minDist = dist
                 (startX, startY) = (x,y)
-        app.ends.remove((startX,startY))
-        return (startX, startY)
-    else: return (None, None)
+        ends.remove((startX,startY))
+        return (startX, startY),ends
+    else: return (None, None),ends
 
 #This function produces the trace list that attempts to trace the character
 def getTrace(app, startCoord = None):
     findEnds(app)
+    tempEnds = copy.copy(app.ends)
+    bends = app.bends
     app.trace = []
     midsList, outlineList = getMidPoints(app)
     if len(midsList) < 2: return
@@ -430,7 +437,7 @@ def getTrace(app, startCoord = None):
         (startX, startY) = startCoord
         app.trace.append((startX,startY))
     else: #'normal' getTrace operation
-        (startX, startY) = getStartPoint(app)#start with the end closest to 0,0
+        (startX, startY),tempEnds = getStartPoint(app,tempEnds)#start with the end closest to 0,0
         if (startX,startY) == (None,None): 
             (startX,startY) = upperLeftMidpoint(midsList)
         app.trace.append((startX, startY))
@@ -459,32 +466,33 @@ def getTrace(app, startCoord = None):
         else: #failing that, find new starting point
             #bearing in mind, midList and ends have have been paired down
             midsList.pop(0)# that point failed to find a match
-            (startX,startY)= getStartPoint(app)
+            (startX,startY),tempEnds = getStartPoint(app,tempEnds)
             if (startX,startY) == (None,None): 
                 (startX,startY) = upperLeftMidpoint(midsList)
             if (startX,startY) == (None,None): #no more mids or ends
                 break
-            #TODO: sometimes leaves ends unconnected, see notes on 4/336.png.  see if this is still true
-            app.trace.append("gap") # at this point it had exhausted all cont connections but found a new point
+            # at this point it had exhausted all cont connections but found a new point
+            app.trace.append("gap") 
             app.trace.append((startX, startY))
-        midsList = removeIntermediatePoints(app,midsList)
+        midsList,tempEnds,bends = removeIntermediatePoints(app,midsList,tempEnds, bends)
         if midsList == None: break
     if app.trace.count("gap") > 2 and app.thresholdAdjTried == False:
-        #print("in tat == F:",app.trace)
         adjustThreshold(app)
     if len(app.trace) > 1:
         closeTheLoop(app)
         reorderIfNeeded(app)
     app.thresholdAdjTried = False #resetting the threshold reset
     app.reorderTried = False
-    print("at end of trace: ", app.trace)
 
+#if trace has too many gaps, try lowering the threshold, thickening the numbers may help
 def adjustThreshold(app):
     app.threshold = 10
     app.thresholdAdjTried = True
     getTrace(app)
+    #print(app.ends)
     app.threshold = 120
 
+#returns the point in the remaining midsList nearest to upper left corner
 def upperLeftMidpoint(midsList):
     if midsList == []: return (None,None)
     minDist = 1000
@@ -495,12 +503,13 @@ def upperLeftMidpoint(midsList):
             (x,y) = midsList[i]
     return (x,y)
 
-def removeIntermediatePoints(app,midsList):
+#removes intermediate points from midsList so they won't be traced again
+def removeIntermediatePoints(app,midsList,ends,bends):
     #maxDist is dist between this x and the "prior" X.  Whereas lastDist
     #is the distance between the most recent two trace points
-    if len(app.trace) <2: return
+    if len(app.trace) <2: return midsList, ends, bends
     if app.trace[-2] == "gap" or app.trace[-1] == "gap": 
-        return midsList
+        return midsList,ends,bends
     startX,startY = app.trace[-2]
     endX,endY = app.trace[-1]
     distToPrior = distance(app.trace[-1],app.trace[-2])
@@ -514,20 +523,19 @@ def removeIntermediatePoints(app,midsList):
             dist = distance(app.trace[-2],(x,y))
             if dist <= distToPrior:
                 midsList.pop(index)
-                if (x,y) in app.ends: app.ends.remove((x,y))
-                if (x,y) in app.bends: app.bends.remove((x,y))
+                if (x,y) in ends: ends.remove((x,y))
+                if (x,y) in bends: bends.remove((x,y))
             else: index += 1
-        #TODO: on one hand this isn't aggressive enough to elim 2/5 problem
+        #on one hand this isn't aggressive enough to elim 2/5 problem
         #but I'm not convinced modifying would make better or worse
         #could simply add isConnected(app,(startX,endY),(x,y)) to test/
         elif min(startX,endX) <= x <= max(startX,endX) and \
         min(startY,endY) <= y <= max(startY,endY) and isConnected(app,(endX,endY),(x,y)):
                 midsList.pop(index)    
         else: index += 1
-    return midsList
+    return midsList,ends,bends
 
 #closing the loop on closed chars
-#TODO: need a test to determine if char otherwise closed, see 3/7.png
 def closeTheLoop(app):
     if "gap" not in app.trace and len(app.trace) >1:
         startX, startY = app.trace[0]
@@ -566,9 +574,7 @@ def reorderIfNeeded(app):
         getTrace(app,(newStartingCoord))
             
 def distance(coord1,coord2):
-    #try: 
     (x1,y1) = coord1
-    #except: print(coord1)
     (x2,y2) = coord2 
     return math.sqrt((x2-x1)**2+(y2-y1)**2)
 
@@ -597,7 +603,8 @@ def areContiguous(app,mid1,mid2):
         return False 
     return True
 
-def isConnected(app,mid1,mid2): #makes sure no gap between midpoints
+#makes sure no gap between midpoints
+def isConnected(app,mid1,mid2): 
     (x1,y1) = (mid1[0], mid1[1])
     (x2,y2) = (mid2[0], mid2[1])
     if abs(x1-x2)==1 and abs(y1-y2)==1: #by definition so to speak
@@ -627,12 +634,11 @@ def isConnected(app,mid1,mid2): #makes sure no gap between midpoints
         else:
             return False
 
-#this function produces pairs of contigous midpoints, ultimately used
-# in getTrace
+#this function produces pairs of contigous midpoints, ultimately used in getTrace
 def contiguousPairs(app,midsList):
     contMidStart = list()
     contMidEnd = list()
-    maxConnections = 100 #TODO: think about this.effectively eliminated for now 
+    maxConnections = 100 #effectively eliminated for now 
     #max no of pairs to "connect to" allowed  
     #(doubled by prior "smaller" coords with their own connection allocation)
     for coord1 in range (len(midsList)):
@@ -644,12 +650,6 @@ def contiguousPairs(app,midsList):
                 contMidEnd.append(midsList[coord2])
                 connections += 1
     return (contMidStart, contMidEnd)
-'''
-print("\n contiguousPairs: +++++++++++++++++")
-(contMidStart, contMidEnd) = contiguousPairs(midsList, app.img)
-for i in range(len(contMidStart)):
-    print(contMidStart[i], contMidEnd[i])
-'''
 
 #Apply two part test to all midpoints: 1 end has all 
 #connected points in "one direction", ie up down, left, right etc &
@@ -687,7 +687,7 @@ def findEnds(app):
             if not areContiguous(app,(x2,y2),(x3,y3)):
                 allConnected = False #the connections aren't connected to each other
                 # ie it's not an end, just a side of a curve, a "bend"
-                #TODO this is pretty restrictive and may need to be loosened
+                #This is pretty restrictive and may need to be loosened
                 # see 2/5.png for a case where overly restrictive
             j += 1
     #finally, handle end case
@@ -696,7 +696,6 @@ def findEnds(app):
             app.bends.append(contMidStart[i-1])
         else: # if it has only one pair, it's an end
             app.ends.append(contMidStart[i-1])   
-    print("ends,bends: ", app.ends,app.bends)
 
 def keyPressed(app, event):
     pages = 5
@@ -732,6 +731,7 @@ def drawButtons(app, canvas):
     canvas.create_rectangle(dCX -2*bW, dCY +bH, dCX -bW, dCY+ 3*bH)
     canvas.create_text(dCX-3*bW//2,dCY +2*bH, text = "Clear")
 
+#fool the AI button
 def drawGameButton(app, canvas):
     canvas.create_rectangle(.84*app.width,15,.97*app.width,85, fill = "pink")
     if app.gameMode == False:
@@ -741,6 +741,7 @@ def drawGameButton(app, canvas):
         canvas.create_text(.905*app.width, 33, text = "Exit" )
         canvas.create_text(.905*app.width, 60, text = "The Game")
 
+#game related information, buttons
 def drawGameInfo(app,canvas):
         canvas.create_rectangle(240,703,390,753, fill = "pink")
         canvas.create_text(315,718, text ="Did I")
@@ -765,6 +766,7 @@ def drawFileButtons(app, canvas):
     canvas.create_rectangle(app.width*.1-bW, app.height*.85-bH, app.width*.1+bW, app.height*.85+bH)
     canvas.create_text(app.width*.1,app.height*.85, text = "open file")
 
+#display related controls, including midpoint, trace, etc.
 def drawDisplayControls(app,canvas):
     bH = 30 #button half height
     cW = app.width*.25 #nominal console column width
@@ -857,6 +859,7 @@ def drawDisplayControls3(app, canvas):
     canvas.create_text(40,675, 
     text=f'Threshold: {app.threshold}    {app.file}', anchor = 'w')
 
+#controls if NN or VNN prediction is made
 def drawNetworkControls(app, canvas):
     r = 11 #radio button radius
     r2 = 6 #inner radio button radius
@@ -870,6 +873,7 @@ def drawNetworkControls(app, canvas):
         canvas.create_oval(30-r2,60-r2,30+r2,60+r2, fill="black")
     canvas.create_text(50,60, text = "Vector NN", anchor = "w")
 
+#draws the midpoints (based on vertically slicing characters)
 def drawMidPoints(app, canvas):
     #from: https://www.cs.cmu.edu/~112/notes/notes-graphics.html#customColors
     pistachio = rgbString(147, 197, 114)
@@ -881,6 +885,7 @@ def drawMidPoints(app, canvas):
             y=app.margin+app.pixH//4+y*app.pixH
             canvas.create_rectangle(x,y,x+app.pixW//2,y+app.pixH//2, fill=pistachio)
 
+#loosely based on http://www.cs.cmu.edu/~112/notes/notes-animations-part3.html
 def drawGrid(app, canvas):
     rEdge = app.width - app.margin + 1
     bEdge = app.height - app.botMargin + 1
@@ -920,6 +925,7 @@ def rgbString(r, g, b):
     # it says to use hex (base 16) with two digits.
     return f'#{r:02x}{g:02x}{b:02x}'
 
+#draws red lines showing where mids are connected
 def drawContiguousConnections(app, canvas):
     if app.contPath != "off":
         midsList, outlineList = getMidPoints(app)
@@ -936,7 +942,8 @@ def drawContiguousConnections(app, canvas):
                     canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
                 elif (x1 == xs) and (y1 == ys): #contPath = "one" 
                     canvas.create_line(x1,y1,x2,y2, fill = "red", width =2)
-                
+
+#blue and green circles designating "ends" and "bends"               
 def drawEnds(app, canvas):
     if app.endsBendsOn:
         for (x,y) in app.ends: 
@@ -953,6 +960,7 @@ def drawBends(app, canvas):
             r = 15
             canvas.create_oval(x-r,y-r,x+r,y+r, width = 4, outline = "blue", fill = None)
 
+#draws the orange line tracing the character(that gets passed to the NN)
 def drawTrace(app, canvas):
     if app.traceOn  and app.trace != []:
         (startX,startY) = app.trace[0]
@@ -967,6 +975,7 @@ def drawTrace(app, canvas):
                 (x2,y2) = app.offset + x2*app.pixW, app.offset + y2*app.pixH
                 canvas.create_line(x1,y1,x2,y2, fill ="orange", width = 3)
 
+#displays the predicted number and confidence array
 def drawPrediction(app, canvas):
     canvas.create_rectangle(app.width*.18,app.height*.071,app.width*.27,app.height*.028)
     canvas.create_text(app.width*.225,app.height*.05, text= "Predict")
@@ -978,6 +987,7 @@ def drawPrediction(app, canvas):
             canvas.create_rectangle(app.width*.56 +i*20,app.height*.07,app.width*.56 +i*20+10, app.height*.07-app.prediction[i]*40, fill="red")
             canvas.create_text(app.width*.56+i*20 +5, app.height*.08,text= f"{i}")
 
+#draws the series of game tutorial screens
 def drawWelcome(app, canvas):
     if app.welcome == 0: return
     if app.welcome == 1: drawWelcome1(app,canvas)
@@ -1095,8 +1105,7 @@ def drawWelcome5(app,canvas):
 def timerFired(app):
     ML, OL = getMidPoints(app)
     if len(ML) > 1: # don't start drawing until there's something to draw
-        findEnds(app) #TODO hard to imagine this should be here
-        getTrace(app) #TODO put these in the right places
+        getTrace(app)
     if app.welcome == 4:
         #startTime = time.time()
         #below presumes we're using 8/17.png for drawWelcome Demo
@@ -1106,33 +1115,35 @@ def timerFired(app):
             index = getIndex(dissapearingPixels[app.i][0],dissapearingPixels[app.i][1])
             app.pixels[index] = 2
 
-
+#everything related to drawing the character and related visualizations
 def drawCharacter(app, canvas):
     drawImage(app, canvas)
     drawMidPoints(app, canvas)
-    drawEnds(app, canvas)
-    drawBends(app, canvas)
     drawSelection(app, canvas)
     drawTrace(app, canvas)
+    drawBends(app, canvas)
+    drawEnds(app, canvas)
     drawContiguousConnections(app, canvas)
 
 def redrawAll(app, canvas):
-    drawGrid(app,canvas)
-    drawButtons(app,canvas)
-    drawFileButtons(app, canvas)
-    drawCharacter(app,canvas)
-    drawGameButton(app,canvas)
-    if app.welcome != 0:
-        drawWelcome(app, canvas)
-    elif app.gameMode == True:
-        drawGameInfo(app, canvas)
-    else:
-        drawDisplayControls(app,canvas)
-        drawDisplayControls2(app,canvas)
-        drawDisplayControls3(app,canvas)
-        drawPrediction(app,canvas)
-        drawNetworkControls(app,canvas)
-    
+    try:
+        drawGrid(app,canvas)
+        drawButtons(app,canvas)
+        drawFileButtons(app, canvas)
+        drawCharacter(app,canvas)
+        drawGameButton(app,canvas)
+        if app.welcome != 0:
+            drawWelcome(app, canvas)
+        elif app.gameMode == True:
+            drawGameInfo(app, canvas)
+        else:
+            drawDisplayControls(app,canvas)
+            drawDisplayControls2(app,canvas)
+            drawDisplayControls3(app,canvas)
+            drawPrediction(app,canvas)
+            drawNetworkControls(app,canvas)
+    except:
+        print("redrawAll Error")
     
 def main():
     #cs112_s21_week4_linter.lint()
