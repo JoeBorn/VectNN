@@ -6,6 +6,9 @@ https://en.wikipedia.org/wiki/MNIST_database
 
 images used in this project have been taken from this database
 with additional ones contributed by the Author
+
+This is the main file for the app, it provides the functions for presenting 
+the "fool the robot" game as well as the underlying digit analyzing tool.
 '''
 from cmu_112_graphics import *
 from vnn_TF import *
@@ -54,29 +57,6 @@ def appStarted(app):
     trainVNN(app)
     #createVNNCSVFile(app) #used for creating new CSV files used to train the network
     #createThetaCSVFile(app) #used for creating new CSV files used to train the network
-
-def traceConverter(app, i=0):
-    hasGap = False
-    result = [i] + [0]*26
-    if app.trace[0] == app.trace[-1]: result[1] = 28 #closed feature
-    for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
-        if app.trace[i] != "gap":
-            if hasGap == False:
-                (x,y) = app.trace[i]
-                result[2*i+2] =x
-                result[2*i+3] =y 
-            else: #new segment will start at index 25, proving a fixed point to NN
-                (x,y) = app.trace[i]
-                result.append(x)
-                result.append(y)
-        else: 
-            hasGap = True
-            if app.trace[i-1] == app.trace[0]:
-                result[1] = 28 # add "closed" feature to array
-    result[25] = len(app.ends)
-    result[26] = len(app.bends)
-    return result[:36]
-
 
 def makeVNNPrediction(app):    
     writeSample(app)
@@ -1068,7 +1048,7 @@ def drawWelcome4(app,canvas):
     drawImage(app,canvas)
     
     body = '''
-    By clearing those 14 pixels, we've transformed an eight into a three, but that's not how 
+    By clearing those 12 pixels, we've transformed an eight into a three, but that's not how 
     the neural network sees it.  To it, over 98% percent of the pixels are the same and 
     statistically they still look very much like the other 5000 eights it has been trained on.  
     In other words, it may well be a three to a human, but it's not a three as a human normally 
@@ -1103,17 +1083,21 @@ def drawWelcome5(app,canvas):
         text = "Press any key to go directly to the game.", font = "Times 12")
 
 def timerFired(app):
-    ML, OL = getMidPoints(app)
-    if len(ML) > 1: # don't start drawing until there's something to draw
-        getTrace(app)
-    if app.welcome == 4:
-        #startTime = time.time()
-        #below presumes we're using 8/17.png for drawWelcome Demo
-        dissapearingPixels = [(11,11),(12,11),(12,12),(13,12),(10,17),(11,17),(11,18),(9,17),(11,12),(10,16),(15,15),(11,13),(13,11)]
-        app.i += 1
-        if app.i < len(dissapearingPixels):
-            index = getIndex(dissapearingPixels[app.i][0],dissapearingPixels[app.i][1])
-            app.pixels[index] = 2
+    try:
+        ML, OL = getMidPoints(app)
+        if len(ML) > 1: # don't start drawing until there's something to draw
+            getTrace(app)
+        if app.welcome == 4:
+            #startTime = time.time()
+            #below presumes we're using 8/17.png for drawWelcome Demo
+            dissapearingPixels = [(11,17),(9,17),(10,17),(10,16),(12,17),(13,12),
+            (12,12),(11,12),(15,14),(16,14),(11,17),(13,11)]
+            app.i += 1
+            if app.i < len(dissapearingPixels):
+                index = getIndex(dissapearingPixels[app.i][0],dissapearingPixels[app.i][1])
+                app.pixels[index] = 2
+    except:
+        print("timerFired Error")
 
 #everything related to drawing the character and related visualizations
 def drawCharacter(app, canvas):

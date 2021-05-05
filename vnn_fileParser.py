@@ -137,3 +137,26 @@ def isLeft(coord1,coord2,coord3):
     x2,y2 = coord2
     x3,y3 = coord3
     return ((x2 - x1)*(y3 - y1) - (y2 - y1)*(x3 - x1)) > 0
+'''
+def traceConverter(app, i=0):
+    hasGap = False
+    result = [i] + [0]*26
+    if app.trace[0] == app.trace[-1]: result[1] = 28 #closed feature
+    for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
+        if app.trace[i] != "gap":
+            if hasGap == False:
+                (x,y) = app.trace[i]
+                result[2*i+2] =x
+                result[2*i+3] =y 
+            else: #new segment will start at index 25, proving a fixed point to NN
+                (x,y) = app.trace[i]
+                result.append(x)
+                result.append(y)
+        else: 
+            hasGap = True
+            if app.trace[i-1] == app.trace[0]:
+                result[1] = 28 # add "closed" feature to array
+    result[25] = len(app.ends)
+    result[26] = len(app.bends)
+    return result[:36]
+'''

@@ -1,17 +1,24 @@
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# from https://github.com/lmoroney/dlaicourse/blob/master/Exercises/Exercise%202%20-%20Handwriting%20Recognition/Exercise2-Answer.ipynb
-#fashion mnist with convolution layers is here: https://github.com/lmoroney/dlaicourse/blob/master/Course%201%20-%20Part%206%20-%20Lesson%202%20-%20Notebook.ipynb
-# below comes from tutorial: https://www.tensorflow.org/tutorials/structured_data/preprocessing_layers
+'''
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+from https://github.com/lmoroney/dlaicourse/blob/master/Exercises/Exercise%202%20-%20Handwriting%20Recognition/Exercise2-Answer.ipynb
+fashion mnist with convolution layers is here: https://github.com/lmoroney/dlaicourse/blob/master/Course%201%20-%20Part%206%20-%20Lesson%202%20-%20Notebook.ipynb
+below comes from tutorial: https://www.tensorflow.org/tutorials/structured_data/preprocessing_layers
+
+This file imports the csv files into the tensorflow Neural Networks using pandas
+
+
+
+'''
 
 import pandas as pd
 import tensorflow as tf
@@ -76,7 +83,7 @@ def df_to_dataset(dataframe, shuffle=True, batch_size=32):
 
 
 #************************************************
-# Evaluating a new sample
+# Evaluating a new sample- using the VNN
 #************************************************
 def predictVNN(app):
   csv_samples = 'sample.csv'
@@ -95,27 +102,32 @@ def writeSample(app):
                 traceWriter.writerow([i for i in range(36)]) #headers
                 traceWriter.writerow(traceConverter(app))
 
-
 def traceConverter(app, i=0):
-  hasGap = False
-  result = [i] + [0]*26
-  if app.trace[0] == app.trace[-1]: result[1] = 28 #closed feature
-  for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
-      if app.trace[i] != "gap":
-          if hasGap == False:
-              (x,y) = app.trace[i]
-              result[2*i+2] =x
-              result[2*i+3] =y 
-          else: #new segment will start at index 25, proving a fixed point to NN
-              (x,y) = app.trace[i]
-              result.append(x)
-              result.append(y)
-      else: 
-          hasGap = True
-          if app.trace[i-1] == app.trace[0]:
-              result[1] = 28 # add "closed" feature to array
-  return result[:36]
+    hasGap = False
+    result = [i] + [0]*26
+    if app.trace[0] == app.trace[-1]: result[1] = 28 #closed feature
+    for i in range(min(len(app.trace), 12)): #truncates at 25 (w/o gap)
+        if app.trace[i] != "gap":
+            if hasGap == False:
+                (x,y) = app.trace[i]
+                result[2*i+2] =x
+                result[2*i+3] =y 
+            else: #new segment will start at index 25, proving a fixed point to NN
+                (x,y) = app.trace[i]
+                result.append(x)
+                result.append(y)
+        else: 
+            hasGap = True
+            if app.trace[i-1] == app.trace[0]:
+                result[1] = 28 # add "closed" feature to array
+    result[25] = len(app.ends) # add no of ends as a feature
+    result[26] = len(app.bends) # add no of bends as a feature
+    return result[:36]
 
+
+#************************************************
+# Evaluating a new sample- using the standard NN
+#************************************************
 
 def predictStandard(app):
   csv_samples = 'standardSample.csv'
