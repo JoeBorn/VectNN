@@ -14,23 +14,27 @@ The vector layer also powers a "Fool the Robot" game where the users goal is to 
 recognizable to users, but can "fool the AI" into thinking they are different numbers. I found it useful in giving some clues on 
 the standard neural network makes its predictions.  
 
-It is worth noting that this program compares the results of a standard fully connected neural network. Adding convolutional layers
-increase the performance of the predictions substantially.
+It is worth noting that this program compares the results of of the vectorizer + fully connected neural network 
+to feeding the pixels directly into a standard fully connected neural network. The best performance on this database 
+uses a convolutional neural network: http://yann.lecun.com/exdb/mnist/ which increases the performance of the predictions substantially.
 
-You can watch a video demo here: https://youtu.be/Y5XkBUskwu8
+So a lot more testing and experimentation would be needed to say anything conclusive, but I nonetheless find it interesting
+in what it illustrates about the potential role of hybrid systems that integrate NN and "explainable" layers.
+
+Demo video here: https://youtu.be/Y5XkBUskwu8
 
 to run:
 
 Put the following 8 files and 1 directory into whatever directory you'd like to run the program from:
 
-cmu_112_graphics.py
-vectorizer.py
-vnn_fileParser.py
-vnn_TF.py
-mnist_standard_testing.csv
-mnist_standard_training.csv
-mnist_VNN_testing.csv
-mnist_VNN_training.csv
+cmu_112_graphics.py, 
+vectorizer.py, 
+vnn_fileParser.py, 
+vnn_TF.py, 
+mnist_standard_testing.csv, 
+mnist_standard_training.csv, 
+mnist_VNN_testing.csv, 
+mnist_VNN_training.csv,
 imageFiles
 
 in the imageFiles directory, place all the included image files
