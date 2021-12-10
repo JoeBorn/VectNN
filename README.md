@@ -1,5 +1,7 @@
 **Vectorized Character Recognizer**
 
+Intro:
+
 This program creates vector strokes that approximately trace the outline of characters in the MNIST handwritten digits database 
 it then feeds those vectors into a neural network and makes a prediction of which number it is 
 You can compare that prediction with the with the output of a fully connected neural network that received the raw pixel information
@@ -17,6 +19,26 @@ increase the performance of the predictions substantially.
 
 You can watch a video demo here: https://youtu.be/Y5XkBUskwu8
 
+to run:
 
+Put the following 8 files and 1 directory into whatever directory you'd like to run the program from:
+
+cmu_112_graphics.py
+vectorizer.py
+vnn_fileParser.py
+vnn_TF.py
+mnist_standard_testing.csv
+mnist_standard_training.csv
+mnist_VNN_testing.csv
+mnist_VNN_training.csv
+imageFiles
+
+in the imageFiles directory, place all the included image files
+
+Libraries needed to run the application:
+
+PIL
+tensorflow
+pandas
 
 [![Github Dark](https://github.com/JoeBorn/VectNN/blob/main/VNN_Screenshot_2.png)](https://youtu.be/Y5XkBUskwu8)
