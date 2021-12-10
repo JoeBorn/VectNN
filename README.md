@@ -33,9 +33,9 @@ vnn_fileParser.py,
 vnn_TF.py, 
 mnist_standard_testing.csv, 
 mnist_standard_training.csv, 
-mnist_VNN_testing.csv, 
-mnist_VNN_training.csv,
-imageFiles
+(mnist_VNN_testing.csv, 
+mnist_VNN_training.csv: extract these two from VectNN.rar),
+imageFiles directory
 
 in the imageFiles directory, place all the included image files
 
