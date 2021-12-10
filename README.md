@@ -37,8 +37,6 @@ in the imageFiles directory, place all the included image files
 
 Libraries needed to run the application:
 
-PIL
-tensorflow
-pandas
+PIL, tensorflow, pandas
 
 [![Github Dark](https://github.com/JoeBorn/VectNN/blob/main/VNN_Screenshot_2.png)](https://youtu.be/Y5XkBUskwu8)
